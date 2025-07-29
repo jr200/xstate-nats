@@ -1,0 +1,25 @@
+{
+  "name": "@xstate-nats/react-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "xstate": "^5.20.1",
+    "xstate-nats": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.1",
+    "@types/react-dom": "^19.1.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.1"
+  }
+}
