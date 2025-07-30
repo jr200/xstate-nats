@@ -1,6 +1,6 @@
 import { Subscription, PublishOptions, NatsConnection, RequestOptions } from '@nats-io/nats-core'
 import { assign, sendParent, setup } from 'xstate'
-import { SubjectSubscriptionConfig, subjectConsolidateState, subjectRequest } from '../actions/subject'
+import { SubjectSubscriptionConfig, subjectConsolidateState, subjectRequest, subjectPublish } from '../actions/subject'
 
 export type PublishParams = {
   payload: Uint8Array | string
@@ -32,6 +32,7 @@ export type ExternalEvents =
   | { type: 'SUBJECT.CLEAR_SUBSCRIBE'; connection: NatsConnection }
 
   | { type: 'SUBJECT.REQUEST'; connection: NatsConnection; subject: string; payload: any; opts?: RequestOptions; callback: (data: any) => void }
+  | { type: 'SUBJECT.PUBLISH'; connection: NatsConnection; subject: string; payload: any; opts?: PublishOptions; onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -69,22 +70,11 @@ export const subjectManagerLogic = setup({
         sendParent({ type: 'SUBJECT.CONNECTED' }),
       ],
       on: {
-        'SUBJECT.REQUEST': {
-          actions: assign(({ context, event }) => {
-            subjectRequest({
-              input: {
-                connection: event.connection,
-                subject: event.subject,
-                payload: event.payload,
-                opts: event.opts,
-                callback: event.callback,
-              },
-            })
-            return {}
-          }),
-        },
         'SUBJECT.DISCONNECTED': {
           target: 'subject_idle',
+        },
+        'SUBJECT.SYNC': {
+          target: 'subject_syncing',
         },
         'SUBJECT.SUBSCRIBE': {
           actions: assign(({ context, event }) => {
@@ -111,8 +101,33 @@ export const subjectManagerLogic = setup({
           actions: assign({ subscriptionConfigs: new Map() }),
           target: 'subject_syncing',
         },
-        'SUBJECT.SYNC': {
-          target: 'subject_syncing',
+        'SUBJECT.REQUEST': {
+          actions: assign(({ event }) => {
+            subjectRequest({
+              input: {
+                connection: event.connection,
+                subject: event.subject,
+                payload: event.payload,
+                opts: event.opts,
+                callback: event.callback,
+              },
+            })
+            return {}
+          }),
+        },
+        'SUBJECT.PUBLISH': {
+          actions: assign(({ event }) => {
+            subjectPublish({
+              input: {
+                connection: event.connection,
+                subject: event.subject,
+                payload: event.payload,
+                options: event.opts,
+                onPublishResult: event.onPublishResult,
+              },
+            })
+            return {}
+          }),
         },
       },
     },

@@ -1,4 +1,4 @@
-import { Msg, NatsConnection, RequestOptions, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
+import { Msg, NatsConnection, PublishOptions, RequestOptions, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
 
 export type SubjectSubscriptionConfig = {
   subject: string
@@ -70,8 +70,6 @@ export const subjectConsolidateState = ({
   }
 }
 
-
-
 export const subjectRequest = ({
   input,
 }: {
@@ -104,6 +102,36 @@ export const subjectRequest = ({
   .catch(err => {
     console.error(`RequestReply error for subject "${subject}"`, err)
   })
+}
+
+
+export const subjectPublish = ({
+  input,
+}: {
+  input: {
+    connection: NatsConnection | null
+    subject: string
+    payload: any
+    options?: PublishOptions
+    onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
+  }
+}) => {
+
+  const { connection, subject, payload, options, onPublishResult } = input
+  if (!connection) {
+    throw new Error('NATS connection is not available')
+  }
+
+  try {
+    connection.publish(subject, payload, options)
+  
+    if (typeof onPublishResult === 'function') {
+      onPublishResult?.({ ok: true })
+    }
+  } catch (callbackError) {
+    console.error(`Publish callback error for subject "${subject}"`, callbackError)
+    onPublishResult?.({ ok: false, error: callbackError as Error })
+  }
 }
 
 const parseMsg = (msg: Msg) => {
