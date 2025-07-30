@@ -1,12 +1,9 @@
-import { NatsConnection, Subscription } from '@nats-io/nats-core'
+import { NatsConnection, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
 
 export type SubjectSubscriptionConfig = {
   subject: string
-  kind: 'subscribe' | 'requestReply'
   callback: (data: any) => void
-  timeout: number
-  noMux?: boolean
-  replayOnReconnect?: boolean
+  opts?: SubscriptionOptions
 }
 
 export const subjectConsolidateState = ({
@@ -41,7 +38,7 @@ export const subjectConsolidateState = ({
   for (const [subject, subscriptionConfig] of targetSubscriptions) {
     if (!currentSubscriptions.has(subject)) {
       try {
-        const sub = connection.subscribe(subject)
+        const sub = connection.subscribe(subject, subscriptionConfig.opts)
 
         // Set up the message handler
         ;(async () => {

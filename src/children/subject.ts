@@ -25,10 +25,13 @@ type InternalEvents =
 export type ExternalEvents =
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
+  | { type: 'SUBJECT.SYNC'; connection: NatsConnection }
+
   | { type: 'SUBJECT.SUBSCRIBE'; connection: NatsConnection; subjectConfig: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; connection: NatsConnection; subject: string }
   | { type: 'SUBJECT.CLEAR_SUBSCRIBE'; connection: NatsConnection }
-  | { type: 'SUBJECT.SYNC'; connection: NatsConnection }
+
+  | { type: 'SUBJECT.REQUEST'; connection: NatsConnection; subject: string; payload: any }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -66,6 +69,12 @@ export const subjectManagerLogic = setup({
         sendParent({ type: 'SUBJECT.CONNECTED' }),
       ],
       on: {
+        'SUBJECT.REQUEST': {
+          actions: assign(({ context, event }) => {
+            console.log('SUBJECT.REQUEST', context, event)
+            return {}
+          }),
+        },
         'SUBJECT.DISCONNECTED': {
           target: 'subject_idle',
         },
