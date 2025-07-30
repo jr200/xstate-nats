@@ -1,6 +1,6 @@
 # xstate-nats
 
-A powerful state machine library that integrates [XState](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a robust and type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
+A powerful state machine library that integrates [XState v5](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a robust and type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
 
 ## Features
 
@@ -175,7 +175,7 @@ The NATS machine operates in the following states:
 - `SUBJECT.UNSUBSCRIBE`: Unsubscribe from a subject
 - `SUBJECT.PUBLISH`: Publish to a subject
 - `SUBJECT.REQUEST`: Send request-reply
-- `SUBJECT.CLEAR_SUBSCRIBE`: Clear all subscriptions
+- `SUBJECT.UNSUBSCRIBE_ALL`: Clear all subscriptions
 
 #### KV Events
 - `KV.BUCKET_CREATE`: Create a KV bucket
@@ -186,6 +186,7 @@ The NATS machine operates in the following states:
 - `KV.DELETE`: Delete a value
 - `KV.SUBSCRIBE`: Subscribe to KV changes
 - `KV.UNSUBSCRIBE`: Unsubscribe from KV changes
+- `KV.UNSUBSCRIBE_ALL`: Unsubscribe from all KV changes
 
 ## Examples
 

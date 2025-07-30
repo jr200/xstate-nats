@@ -1,4 +1,4 @@
-export { safeStringify } from './utils'
-export { natsMachine } from './nats'
+export { natsMachine } from './machines/root'
 export { KvSubscriptionKey } from './actions/kv'
-export { parseNatsResult } from './actions/nats'
+export { parseNatsResult } from './actions/connection'
+export { safeStringify } from './utils'
