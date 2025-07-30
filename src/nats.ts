@@ -133,7 +133,7 @@ export const natsMachine = setup({
       entry: [sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! }))],
       on: {
         'SUBJECT.CONNECTED': {
-          actions: [assign({ subjectManagerReady: _ => true }), () => console.log('RECEIVED SUBJECT.CONNECTED')],
+          actions: [assign({ subjectManagerReady: _ => true })],
         },
         KV_MANAGER_READY: {
           actions: assign({

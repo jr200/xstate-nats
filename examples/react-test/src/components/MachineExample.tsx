@@ -14,13 +14,10 @@ export const MachineExample = () => {
   const kvState = useSelector(kvRef, state => state)
 
   // Request-reply state
-  const [requestSubject, setRequestSubject] = useState('test.request')
   const [requestPayload, setRequestPayload] = useState('{"message": "Hello, NATS!"}')
   const [requestReplies, setRequestReplies] = useState<any[]>([])
 
   // Publish state
-  const [publishSubject, setPublishSubject] = useState('test.hello')
-  const [publishPayload, setPublishPayload] = useState('{"message": "Hello from publish!"}')
   const [publishResults, setPublishResults] = useState<any[]>([])
 
   // Extract active subscriptions and received messages with better error handling
@@ -48,37 +45,36 @@ export const MachineExample = () => {
           subject: currentSubject,
           callback: data => {
             setReceivedMessages(prevMessages => [
-              ...prevMessages,
               {
                 subject: currentSubject,
                 payload: data,
                 timestamp: Date.now(),
               },
+              ...prevMessages,
             ])
           },
         },
       })
-      setSubjectInput('')
     }
   }
 
   const handleRequestReply = () => {
-    if (requestSubject.trim() && requestPayload.trim()) {
+    if (subjectInput.trim() && requestPayload.trim()) {
       try {
         send({
           type: 'SUBJECT.REQUEST',
           connection: state.context.connection!,
-          subject: requestSubject.trim(),
+          subject: subjectInput.trim(),
           payload: requestPayload,
           callback: (reply: any) => {
-            setRequestReplies([
-              ...requestReplies,
+            setRequestReplies(prevReplies => [
               {
-                subject: requestSubject.trim(),
+                subject: subjectInput.trim(),
                 request: requestPayload,
                 reply,
                 timestamp: Date.now(),
               },
+              ...prevReplies,
             ])
           },
         })
@@ -90,22 +86,22 @@ export const MachineExample = () => {
   }
 
   const handlePublish = () => {
-    if (publishSubject.trim() && publishPayload.trim()) {
+    if (subjectInput.trim() && requestPayload.trim()) {
       try {
         send({
           type: 'SUBJECT.PUBLISH',
           connection: state.context.connection!,
-          subject: publishSubject.trim(),
-          payload: publishPayload,
+          subject: subjectInput.trim(),
+          payload: requestPayload,
           onPublishResult: (result: { ok: true } | { ok: false; error: Error }) => {
             setPublishResults(prevResults => [
-              ...prevResults,
               {
-                subject: publishSubject.trim(),
-                payload: publishPayload,
+                subject: subjectInput.trim(),
+                payload: requestPayload,
                 result,
                 timestamp: Date.now(),
               },
+              ...prevResults,
             ])
           },
         })
@@ -128,27 +124,17 @@ export const MachineExample = () => {
     })
   }
 
-  const handleClear = () => {
-    setSubjectInput('')
-  }
-
-  const handleClearRequestReplies = () => {
+  const handleClearAllMessages = () => {
     setRequestReplies([])
-  }
-
-  const handleClearReceivedMessages = () => {
     setReceivedMessages([])
-  }
-
-  const handleClearPublishResults = () => {
     setPublishResults([])
   }
 
   const isConnected = state.matches('connected')
   const canSubscribe = isConnected && subjectInput.trim().length > 0
   const hasSubscriptions = activeSubscriptions.length > 0
-  const canRequestReply = isConnected && requestSubject.trim().length > 0 && requestPayload.trim().length > 0
-  const canPublish = isConnected && publishSubject.trim().length > 0 && publishPayload.trim().length > 0
+  const canRequestReply = isConnected && subjectInput.trim().length > 0 && requestPayload.trim().length > 0
+  const canPublish = isConnected && subjectInput.trim().length > 0 && requestPayload.trim().length > 0
 
   return (
     <div className='min-h-screen bg-gray-50 flex'>
@@ -220,13 +206,13 @@ export const MachineExample = () => {
               )}
             </div>
 
-            {/* Messages & Results */}
+            {/* Messages */}
             <div>
-              <h3 className='text-lg font-semibold text-gray-800 mb-3'>Messages & Results</h3>
+              <h3 className='text-lg font-semibold text-gray-800 mb-3'>Messages</h3>
               {receivedMessages.length === 0 && requestReplies.length === 0 && publishResults.length === 0 ? (
-                <div className='text-gray-500 text-center py-8'>No messages or results</div>
+                <div className='text-gray-500 text-center py-8'>No messages</div>
               ) : (
-                <div className='space-y-4 max-h-64 overflow-auto'>
+                <div className='space-y-4 max-h-96 overflow-auto'>
                   {/* Subscription Received Messages */}
                   {receivedMessages.map((message, index) => (
                     <div key={`subscription-${index}`} className='bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg'>
@@ -239,12 +225,16 @@ export const MachineExample = () => {
                             SUBSCRIPTION
                           </span>
                         </div>
-                        <span className='text-xs text-gray-500'>{new Date(message.timestamp).toLocaleTimeString()}</span>
+                        <span className='text-xs text-gray-500'>
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </span>
                       </div>
                       <div>
                         <h4 className='text-sm font-semibold text-gray-700 mb-2'>Message:</h4>
                         <pre className='text-xs text-gray-700 bg-white p-2 rounded border whitespace-pre-wrap overflow-auto'>
-                          {typeof message.payload === 'string' ? message.payload : JSON.stringify(message.payload, null, 2)}
+                          {typeof message.payload === 'string'
+                            ? message.payload
+                            : JSON.stringify(message.payload, null, 2)}
                         </pre>
                       </div>
                     </div>
@@ -324,7 +314,7 @@ export const MachineExample = () => {
           <div className='bg-white rounded-xl shadow-lg p-4 border border-gray-200 flex flex-col gap-8'>
             {/* Subscription Controls */}
             <div>
-              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Subscription Controls</h3>
+              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Control Panel</h3>
               <div className='flex flex-col gap-4'>
                 <div>
                   <label htmlFor='subject-input' className='block text-sm font-medium text-gray-700 mb-2'>
@@ -336,57 +326,6 @@ export const MachineExample = () => {
                     value={subjectInput}
                     onChange={e => setSubjectInput(e.target.value)}
                     placeholder='Enter NATS subject (e.g., test.hello)'
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                    disabled={!isConnected}
-                  />
-                </div>
-                <div className='flex gap-2'>
-                  <button
-                    onClick={handleClear}
-                    disabled={!subjectInput.trim()}
-                    className='bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={handleSubscribe}
-                    disabled={!canSubscribe}
-                    className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
-                  >
-                    Subscribe
-                  </button>
-                  <button
-                    onClick={handleUnsubscribeAll}
-                    disabled={!hasSubscriptions}
-                    className='bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
-                  >
-                    Unsubscribe All
-                  </button>
-                  <button
-                    onClick={handleClearReceivedMessages}
-                    disabled={receivedMessages.length === 0}
-                    className='bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
-                  >
-                    Clear Messages
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Request-Reply Controls */}
-            <div>
-              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Request-Reply</h3>
-              <div className='flex flex-col gap-4'>
-                <div>
-                  <label htmlFor='request-subject' className='block text-sm font-medium text-gray-700 mb-2'>
-                    Subject
-                  </label>
-                  <input
-                    id='request-subject'
-                    type='text'
-                    value={requestSubject}
-                    onChange={e => setRequestSubject(e.target.value)}
-                    placeholder='Enter NATS subject (e.g., test.request)'
                     className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                     disabled={!isConnected}
                   />
@@ -407,69 +346,40 @@ export const MachineExample = () => {
                 </div>
                 <div className='flex gap-2'>
                   <button
+                    onClick={handleSubscribe}
+                    disabled={!canSubscribe}
+                    className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                  >
+                    Subscribe
+                  </button>
+                  <button
+                    onClick={handlePublish}
+                    disabled={!canPublish}
+                    className='bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                  >
+                    Publish
+                  </button>
+                  <button
                     onClick={handleRequestReply}
                     disabled={!canRequestReply}
                     className='bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
                   >
                     Send Request
                   </button>
+                  <div className='flex gap-8' />
                   <button
-                    onClick={handleClearRequestReplies}
-                    disabled={requestReplies.length === 0}
-                    className='bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                    onClick={handleUnsubscribeAll}
+                    disabled={!hasSubscriptions}
+                    className='bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
                   >
-                    Clear Replies
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Publish Controls */}
-            <div>
-              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Publish</h3>
-              <div className='flex flex-col gap-4'>
-                <div>
-                  <label htmlFor='publish-subject' className='block text-sm font-medium text-gray-700 mb-2'>
-                    Subject
-                  </label>
-                  <input
-                    id='publish-subject'
-                    type='text'
-                    value={publishSubject}
-                    onChange={e => setPublishSubject(e.target.value)}
-                    placeholder='Enter NATS subject (e.g., test.hello)'
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                    disabled={!isConnected}
-                  />
-                </div>
-                <div>
-                  <label htmlFor='publish-payload' className='block text-sm font-medium text-gray-700 mb-2'>
-                    Payload (JSON)
-                  </label>
-                  <textarea
-                    id='publish-payload'
-                    value={publishPayload}
-                    onChange={e => setPublishPayload(e.target.value)}
-                    placeholder='Enter JSON payload'
-                    rows={3}
-                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm'
-                    disabled={!isConnected}
-                  />
-                </div>
-                <div className='flex gap-2'>
-                  <button
-                    onClick={handlePublish}
-                    disabled={!canPublish}
-                    className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
-                  >
-                    Publish
+                    Unsubscribe All
                   </button>
                   <button
-                    onClick={handleClearPublishResults}
-                    disabled={publishResults.length === 0}
+                    onClick={handleClearAllMessages}
+                    disabled={requestReplies.length + receivedMessages.length + publishResults.length === 0}
                     className='bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
                   >
-                    Clear Results
+                    Clear Messages
                   </button>
                 </div>
               </div>
@@ -480,10 +390,10 @@ export const MachineExample = () => {
         {/* Right side - Combined State Panel */}
         <div className='h-screen w-96 bg-white shadow-lg border-l border-gray-200 p-4 overflow-y-auto fixed right-0 top-0 flex flex-col z-20'>
           <h3 className='text-lg font-semibold text-gray-800 mb-4 sticky top-0 bg-white pb-2'>System State</h3>
-          
+
           {/* Main State */}
           <div className='mb-6'>
-            <h4 className='text-md font-semibold text-gray-700 mb-2'>Main State</h4>
+            <h4 className='text-md font-semibold text-gray-700 mb-2'>Root State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
                 {safeStringify(state, 2)}
@@ -493,7 +403,7 @@ export const MachineExample = () => {
 
           {/* Subject State */}
           <div className='mb-6'>
-            <h4 className='text-md font-semibold text-gray-700 mb-2'>Subject</h4>
+            <h4 className='text-md font-semibold text-gray-700 mb-2'>Subject State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
                 {safeStringify(subjectState, 2)}
@@ -503,7 +413,7 @@ export const MachineExample = () => {
 
           {/* KV State */}
           <div>
-            <h4 className='text-md font-semibold text-gray-700 mb-2'>Key-Value Store</h4>
+            <h4 className='text-md font-semibold text-gray-700 mb-2'>KV State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
                 {safeStringify(kvState, 2)}

@@ -18,21 +18,32 @@ export interface Context {
 }
 
 // internal events and events from nats connection
-type InternalEvents =
-  | { type: 'ERROR'; error: Error }
+type InternalEvents = { type: 'ERROR'; error: Error }
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
   | { type: 'SUBJECT.SYNC'; connection: NatsConnection }
-
   | { type: 'SUBJECT.SUBSCRIBE'; connection: NatsConnection; subjectConfig: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; connection: NatsConnection; subject: string }
   | { type: 'SUBJECT.CLEAR_SUBSCRIBE'; connection: NatsConnection }
-
-  | { type: 'SUBJECT.REQUEST'; connection: NatsConnection; subject: string; payload: any; opts?: RequestOptions; callback: (data: any) => void }
-  | { type: 'SUBJECT.PUBLISH'; connection: NatsConnection; subject: string; payload: any; opts?: PublishOptions; onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void }
+  | {
+      type: 'SUBJECT.REQUEST'
+      connection: NatsConnection
+      subject: string
+      payload: any
+      opts?: RequestOptions
+      callback: (data: any) => void
+    }
+  | {
+      type: 'SUBJECT.PUBLISH'
+      connection: NatsConnection
+      subject: string
+      payload: any
+      opts?: PublishOptions
+      onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
+    }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -57,7 +68,7 @@ export const subjectManagerLogic = setup({
       entry: [
         assign({
           subscriptions: new Map<string, Subscription>(),
-        })
+        }),
       ],
       on: {
         'SUBJECT.SYNC': {
@@ -66,9 +77,7 @@ export const subjectManagerLogic = setup({
       },
     },
     subject_connected: {
-      entry: [
-        sendParent({ type: 'SUBJECT.CONNECTED' }),
-      ],
+      entry: [sendParent({ type: 'SUBJECT.CONNECTED' })],
       on: {
         'SUBJECT.DISCONNECTED': {
           target: 'subject_idle',
@@ -133,20 +142,19 @@ export const subjectManagerLogic = setup({
     },
     subject_syncing: {
       entry: [
-          assign(({ context, event }) =>
-            subjectConsolidateState({
-              input: {
-                connection: (event as any).connection as NatsConnection,
-                currentSubscriptions: context.subscriptions,
-                targetSubscriptions: context.subscriptionConfigs,
-              },
-            })
-          )
+        assign(({ context, event }) =>
+          subjectConsolidateState({
+            input: {
+              connection: (event as any).connection as NatsConnection,
+              currentSubscriptions: context.subscriptions,
+              targetSubscriptions: context.subscriptionConfigs,
+            },
+          })
+        ),
       ],
-      always:
-        {
-          target: 'subject_connected',
-        },
+      always: {
+        target: 'subject_connected',
+      },
     },
     subject_error: {
       on: {

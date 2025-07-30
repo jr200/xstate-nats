@@ -1,4 +1,11 @@
-import { Msg, NatsConnection, PublishOptions, RequestOptions, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
+import {
+  Msg,
+  NatsConnection,
+  PublishOptions,
+  RequestOptions,
+  Subscription,
+  SubscriptionOptions,
+} from '@nats-io/nats-core'
 
 export type SubjectSubscriptionConfig = {
   subject: string
@@ -81,29 +88,27 @@ export const subjectRequest = ({
     callback: (data: any) => void
   }
 }) => {
-
   const { connection, subject, payload, opts, callback } = input
   if (!connection) {
     throw new Error('NATS connection is not available')
   }
 
   connection
-  .request(subject, payload, opts)
-  .then((msg: Msg) => {
-    try {
-      if (typeof callback === 'function') {
-        const data = parseMsg(msg)
-        callback(data)
+    .request(subject, payload, opts)
+    .then((msg: Msg) => {
+      try {
+        if (typeof callback === 'function') {
+          const data = parseMsg(msg)
+          callback(data)
+        }
+      } catch (callbackError) {
+        console.error(`RequestReply callback error for subject "${subject}"`, callbackError)
       }
-    } catch (callbackError) {
-      console.error(`RequestReply callback error for subject "${subject}"`, callbackError)
-    }
-  })
-  .catch(err => {
-    console.error(`RequestReply error for subject "${subject}"`, err)
-  })
+    })
+    .catch(err => {
+      console.error(`RequestReply error for subject "${subject}"`, err)
+    })
 }
-
 
 export const subjectPublish = ({
   input,
@@ -116,7 +121,6 @@ export const subjectPublish = ({
     onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
   }
 }) => {
-
   const { connection, subject, payload, options, onPublishResult } = input
   if (!connection) {
     throw new Error('NATS connection is not available')
@@ -124,7 +128,7 @@ export const subjectPublish = ({
 
   try {
     connection.publish(subject, payload, options)
-  
+
     if (typeof onPublishResult === 'function') {
       onPublishResult?.({ ok: true })
     }

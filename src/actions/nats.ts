@@ -53,7 +53,6 @@ export const connectToNats = fromPromise(
 )
 
 export const disconnectNats = fromPromise(async ({ input }: { input: { connection: NatsConnection | null } }) => {
-  console.log('DISCONNECTING FROM NATS', input)
   if (input.connection) {
     await input.connection.drain()
     await input.connection.close()
