@@ -51,7 +51,6 @@ export const MachineExample = () => {
       const currentSubject = subjectInput.trim()
       send({
         type: 'SUBJECT.SUBSCRIBE',
-        connection: state.context.connection!,
         subjectConfig: {
           subject: currentSubject,
           callback: data => {
@@ -74,7 +73,6 @@ export const MachineExample = () => {
       try {
         send({
           type: 'SUBJECT.REQUEST',
-          connection: state.context.connection!,
           subject: subjectInput.trim(),
           payload: requestPayload,
           callback: (reply: any) => {
@@ -101,7 +99,6 @@ export const MachineExample = () => {
       try {
         send({
           type: 'SUBJECT.PUBLISH',
-          connection: state.context.connection!,
           subject: subjectInput.trim(),
           payload: requestPayload,
           onPublishResult: (result: { ok: true } | { ok: false; error: Error }) => {
@@ -124,13 +121,12 @@ export const MachineExample = () => {
   }
 
   const handleUnsubscribeAll = () => {
-    send({ type: 'SUBJECT.CLEAR_SUBSCRIBE', connection: state.context.connection! })
+    send({ type: 'SUBJECT.CLEAR_SUBSCRIBE' })
   }
 
   const handleUnsubscribeOne = (subject: string) => {
     send({
       type: 'SUBJECT.UNSUBSCRIBE',
-      connection: state.context.connection!,
       subject,
     })
   }
@@ -146,7 +142,6 @@ export const MachineExample = () => {
       try {
         send({
           type: 'KV.PUT',
-          connection: state.context.connection!,
           bucket: kvBucket.trim(),
           key: kvKey.trim(),
           value: kvValue.trim(),
@@ -174,7 +169,6 @@ export const MachineExample = () => {
     if (kvBucket.trim() && kvKey.trim()) {
       send({
         type: 'KV.GET',
-        connection: state.context.connection!,
         bucket: kvBucket.trim(),
         key: kvKey.trim(),
         onResult: (result: KvEntry | null | { error: Error }) => {
@@ -216,7 +210,6 @@ export const MachineExample = () => {
     if (kvBucket.trim() && kvKey.trim()) {
       send({
         type: 'KV.DELETE',
-        connection: state.context.connection!,
         bucket: kvBucket.trim(),
         key: kvKey.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
@@ -239,7 +232,6 @@ export const MachineExample = () => {
     if (kvBucket.trim()) {
       send({
         type: 'KV.BUCKET_CREATE',
-        connection: state.context.connection!,
         bucket: kvBucket.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
           setKvResults(prevResults => [
@@ -261,7 +253,6 @@ export const MachineExample = () => {
     if (kvBucket.trim()) {
       send({
         type: 'KV.BUCKET_DELETE',
-        connection: state.context.connection!,
         bucket: kvBucket.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
           setKvResults(prevResults => [
@@ -282,10 +273,7 @@ export const MachineExample = () => {
   const handleKvBucketList = () => {
     send({
       type: 'KV.BUCKET_LIST',
-      connection: state.context.connection!,
       onResult: (result: KvStatus[] | string[] | { error: Error }) => {
-        console.log('handleKvBucketList(), result=', result)
-
         // Check if result is an error object first
         if ('error' in result) {
           setKvResults(prevResults => [

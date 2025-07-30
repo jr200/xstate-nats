@@ -24,13 +24,12 @@ type InternalEvents = { type: 'ERROR'; error: Error }
 export type ExternalEvents =
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
-  | { type: 'SUBJECT.SYNC'; connection: NatsConnection }
-  | { type: 'SUBJECT.SUBSCRIBE'; connection: NatsConnection; subjectConfig: SubjectSubscriptionConfig }
-  | { type: 'SUBJECT.UNSUBSCRIBE'; connection: NatsConnection; subject: string }
-  | { type: 'SUBJECT.CLEAR_SUBSCRIBE'; connection: NatsConnection }
+  | { type: 'SUBJECT.SYNC' }
+  | { type: 'SUBJECT.SUBSCRIBE'; subjectConfig: SubjectSubscriptionConfig }
+  | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
+  | { type: 'SUBJECT.CLEAR_SUBSCRIBE' }
   | {
       type: 'SUBJECT.REQUEST'
-      connection: NatsConnection
       subject: string
       payload: any
       opts?: RequestOptions
@@ -38,7 +37,6 @@ export type ExternalEvents =
     }
   | {
       type: 'SUBJECT.PUBLISH'
-      connection: NatsConnection
       subject: string
       payload: any
       opts?: PublishOptions
@@ -114,7 +112,7 @@ export const subjectManagerLogic = setup({
           actions: assign(({ event }) => {
             subjectRequest({
               input: {
-                connection: event.connection,
+                connection: (event as any).connection as NatsConnection,
                 subject: event.subject,
                 payload: event.payload,
                 opts: event.opts,
@@ -128,7 +126,7 @@ export const subjectManagerLogic = setup({
           actions: assign(({ event }) => {
             subjectPublish({
               input: {
-                connection: event.connection,
+                connection: (event as any).connection as NatsConnection,
                 subject: event.subject,
                 payload: event.payload,
                 options: event.opts,

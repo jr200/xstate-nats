@@ -166,7 +166,11 @@ export const natsMachine = setup({
           target: 'closing',
         },
         'SUBJECT.*': {
-          actions: [sendTo('subject', ({ event }: { event: SubjectExternalEvents }) => event)],
+          actions: [
+            sendTo('subject', ({ event, context }: { event: SubjectExternalEvents; context: Context }) => {
+              return { ...event, connection: context.connection }
+            }),
+          ],
         },
         'KV.*': {
           actions: [

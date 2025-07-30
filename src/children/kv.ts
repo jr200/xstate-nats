@@ -20,35 +20,30 @@ type InternalEvents = { type: 'ERROR'; error: Error }
 export type ExternalEvents =
   | { type: 'KV.CONNECTED' }
   | { type: 'KV.DISCONNECTED' }
-  | { type: 'KV.SYNC'; connection: NatsConnection | null; kvm: Kvm | null }
+  | { type: 'KV.SYNC'; kvm: Kvm | null }
   | {
       type: 'KV.BUCKET_LIST'
-      connection: NatsConnection | null
       bucket?: string
       onResult: (result: KvStatus[] | string[] | { error: Error }) => void
     }
   | {
       type: 'KV.BUCKET_CREATE'
-      connection: NatsConnection | null
       bucket: string
       onResult: (result: { ok: true } | { ok: false } | { error: Error }) => void
     }
   | {
       type: 'KV.BUCKET_DELETE'
-      connection: NatsConnection | null
       bucket: string
       onResult: (result: { ok: true } | { ok: false } | { error: Error }) => void
     }
   | {
       type: 'KV.GET'
-      connection: NatsConnection | null
       bucket: string
       key: string
       onResult: (result: KvEntry | null | { error: Error }) => void
     }
   | {
       type: 'KV.PUT'
-      connection: NatsConnection | null
       bucket: string
       key: string
       value: any
@@ -56,7 +51,6 @@ export type ExternalEvents =
     }
   | {
       type: 'KV.DELETE'
-      connection: NatsConnection | null
       bucket: string
       key: string
       onResult: (result: { ok: true } | { error: Error }) => void
@@ -157,7 +151,9 @@ export const kvManagerLogic = setup({
           actions: async ({ event }) => {
             try {
               try {
-                const js = jetstream(event.connection!)
+                // workaround: theres no delete bucket method on the kvm
+                const connection = (event as any).connection as NatsConnection
+                const js = jetstream(connection!)
                 const jsm = await js.jetstreamManager()
                 const res = await jsm.streams.delete(`KV_${event.bucket}`)
                 event.onResult({ ok: res })
