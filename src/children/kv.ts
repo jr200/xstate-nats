@@ -10,6 +10,7 @@ export interface Context {
   kvmOpts?: KvOptions
   subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
   subscriptionConfigs: Map<string, KvSubscriptionConfig>
+  error?: Error
 }
 
 // internal events and events from nats connection
@@ -71,6 +72,9 @@ export const kvManagerLogic = setup({
     context: {} as Context,
     events: {} as Events,
   },
+  actors: {
+    kvConsolidateState: kvConsolidateState,
+  },
 }).createMachine({
   /** @xstate-layout N4IgpgJg5mDOIC5QAoC2BDAxgCwJYDswBKAOlgFcAjAKzEwBcB9XCAGzAGIBlAVQCEAUgFEAwgBVGASQByksZICCAGUlchAbQAMAXUSgADgHtYuerkP49IAB6IATJs0kAnAFYAzAEY7rgDQgAT3tXTxJNAA53KOiYrwBfOP80LDxCUgoaOiYCU1x0VlwTfCgOa1h6dHowEnQAMyqAJ2RXRyIOZJwCYjIqWgZmfFz8woIoLV0kECMTMwsrWwQANk0AFhJPNy8ffyCEHzsSV0jY2M8EpIxOtJ7M-swLQgZIbn5hcUZePi4RACVJPg0Ois01yc0mC08jnCJAA7O4Vu4YX5AvYVjDDnZ4YjXOcQB1Ut0Mn0mPd8I8qhAXoJRBIeNJPt8-gDxsDjKDLODEEiDu5FjDPOEkTtEJ4Yc5cfiuulellGKTyc9Pm8JCIlEIFD8PvxGf9ARMDGzZhzQAs4a4SHY7ItXIttiiEN5oTjcfhDBA4FZJWlWTNzMabIgALSLYUIYMSy4E6W3bJsMA+9nzRArOyhy3QiInU4RlJSm7EgZDApFKAJo1JhArTzmzTV23I3bpsLHLNRM6JPGRvNE2XyrKQMt+iswpEkRaChv2eGHHNXQkyu4WWCGAoQSpgRjldeDsEmkWY0IrFYebyTvZomcdr3zmOMMANBqGBo7-0LFaLC0CoX26KHFuthIEiAA */
   initial: 'kv_idle',
@@ -85,6 +89,7 @@ export const kvManagerLogic = setup({
     kv_idle: {
       entry: [
         assign({
+          kvm: null,
           subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
         }),
       ],
@@ -243,20 +248,27 @@ export const kvManagerLogic = setup({
       },
     },
     kv_syncing: {
-      entry: [
-        assign(({ context, event }) =>
-          kvConsolidateState({
-            input: {
-              connection: (event as any).connection as NatsConnection,
-              kvm: context.kvm,
-              currentKvSubscriptions: context.subscriptions,
-              targetKvSubscriptions: context.subscriptionConfigs,
-            },
-          })
-        ),
-      ],
-      always: {
-        target: 'kv_connected',
+      invoke: {
+        src: 'kvConsolidateState',
+        input: ({ context, event }: { context: Context; event: Events }) => ({
+          kvm: context.kvm!,
+          connection: (event as any).connection as NatsConnection,
+          currentState: context.subscriptions,
+          targetState: context.subscriptionConfigs,
+        }),
+        onDone: {
+          target: 'kv_connected',
+          actions: assign(({ event }) => ({
+            kvm: event.output.kvm,
+            subscriptions: event.output.subscriptions,
+          })),
+        },
+        onError: {
+          target: 'kv_error',
+          actions: assign({
+            error: ({ event }) => event.error as Error,
+          }),
+        },
       },
     },
     kv_error: {

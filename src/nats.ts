@@ -171,7 +171,6 @@ export const natsMachine = setup({
         'KV.*': {
           actions: [
             sendTo('kv', ({ event, context }: { event: KvExternalEvents; context: Context }) => {
-              console.log('KV.*', event, context.connection)
               return { ...event, connection: context.connection }
             }),
           ],

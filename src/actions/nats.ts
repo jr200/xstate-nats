@@ -60,7 +60,6 @@ export const disconnectNats = fromPromise(async ({ input }: { input: { connectio
   }
 })
 
-
 export const parseNatsResult = (msg: Msg | KvEntry | null | Error) => {
   if (!msg) {
     return null

@@ -151,7 +151,16 @@ export const MachineExample = () => {
           key: kvKey.trim(),
           value: kvValue.trim(),
           onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
-            console.log('handleKvPut(), result=', result)
+            setKvResults(prevResults => [
+              {
+                operation: 'KV.PUT',
+                bucket: kvBucket.trim(),
+                result: kvKey.trim(),
+                value: result,
+                timestamp: Date.now(),
+              },
+              ...prevResults,
+            ])
           },
         })
       } catch (error) {
@@ -176,10 +185,10 @@ export const MachineExample = () => {
           if ('error' in result) {
             setKvResults(prevResults => [
               {
-                operation: 'KV.BUCKET_LIST',
-                bucket: '',
+                operation: 'KV.GET',
+                bucket: kvBucket.trim(),
+                value: kvKey.trim(),
                 result: { error: result.error },
-                value: '',
                 timestamp: Date.now(),
               },
               ...prevResults,
@@ -198,7 +207,6 @@ export const MachineExample = () => {
             },
             ...prevResults,
           ])
-          console.log('handleKvGet(), result=', data)
         },
       })
     }
@@ -212,7 +220,16 @@ export const MachineExample = () => {
         bucket: kvBucket.trim(),
         key: kvKey.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
-          console.log('handleKvDelete(), result=', result)
+          setKvResults(prevResults => [
+            {
+              operation: 'KV.DELETE',
+              bucket: kvBucket.trim(),
+              value: kvKey.trim(),
+              result: result,
+              timestamp: Date.now(),
+            },
+            ...prevResults,
+          ])
         },
       })
     }
@@ -225,7 +242,16 @@ export const MachineExample = () => {
         connection: state.context.connection!,
         bucket: kvBucket.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
-          console.log('handleKvBucketCreate(), result=', result)
+          setKvResults(prevResults => [
+            {
+              operation: 'KV.BUCKET_CREATE',
+              bucket: kvBucket.trim(),
+              value: kvKey.trim(),
+              result: result,
+              timestamp: Date.now(),
+            },
+            ...prevResults,
+          ])
         },
       })
     }
@@ -238,7 +264,16 @@ export const MachineExample = () => {
         connection: state.context.connection!,
         bucket: kvBucket.trim(),
         onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
-          console.log('handleKvBucketDelete(), result=', result)
+          setKvResults(prevResults => [
+            {
+              operation: 'KV.BUCKET_DELETE',
+              bucket: kvBucket.trim(),
+              value: kvKey.trim(),
+              result: result,
+              timestamp: Date.now(),
+            },
+            ...prevResults,
+          ])
         },
       })
     }
@@ -281,11 +316,11 @@ export const MachineExample = () => {
               operation: 'KV.BUCKET_LIST',
               bucket: item.bucket,
               result: { ok: true },
-              value: ({
+              value: {
                 description: item.description,
                 values: item.values || 0,
                 size: item.size || 0,
-              }),
+              },
               timestamp: Date.now(),
             }
           }
@@ -307,7 +342,6 @@ export const MachineExample = () => {
 
       send({
         type: 'KV.SUBSCRIBE',
-        connection: state.context.connection!,
         config: {
           bucket,
           key,
@@ -333,7 +367,6 @@ export const MachineExample = () => {
     if (bucket.trim() && key.trim()) {
       send({
         type: 'KV.UNSUBSCRIBE',
-        connection: state.context.connection!,
         bucket,
         key,
       })
@@ -343,7 +376,6 @@ export const MachineExample = () => {
   const handleKvUnsubscribeAll = () => {
     send({
       type: 'KV.CLEAR_SUBSCRIBE',
-      connection: state.context.connection!,
     })
   }
 
