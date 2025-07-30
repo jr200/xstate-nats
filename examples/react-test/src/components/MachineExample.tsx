@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { natsMachine, safeStringify, KvSubscriptionKey } from 'xstate-nats'
+import { natsMachine, safeStringify, KvSubscriptionKey, parseNatsResult } from 'xstate-nats'
 import { useActor, useSelector } from '@xstate/react'
-import { KvStatus } from '@nats-io/kv'
+import { KvEntry, KvStatus } from '@nats-io/kv'
 
 export const MachineExample = () => {
   const [state, send, actor] = useActor(natsMachine)
@@ -149,7 +149,10 @@ export const MachineExample = () => {
           connection: state.context.connection!,
           bucket: kvBucket.trim(),
           key: kvKey.trim(),
-          value: JSON.parse(kvValue.trim()),
+          value: kvValue.trim(),
+          onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
+            console.log('handleKvPut(), result=', result)
+          },
         })
       } catch (error) {
         console.error('Invalid JSON value:', error)
@@ -165,6 +168,38 @@ export const MachineExample = () => {
         connection: state.context.connection!,
         bucket: kvBucket.trim(),
         key: kvKey.trim(),
+        onResult: (result: KvEntry | null | { error: Error }) => {
+          if (!result) {
+            return
+          }
+
+          if ('error' in result) {
+            setKvResults(prevResults => [
+              {
+                operation: 'KV.BUCKET_LIST',
+                bucket: '',
+                result: { error: result.error },
+                value: '',
+                timestamp: Date.now(),
+              },
+              ...prevResults,
+            ])
+            return
+          }
+
+          const data = parseNatsResult(result)
+          setKvResults(prevResults => [
+            {
+              operation: 'KV.GET',
+              bucket: result.bucket,
+              value: data,
+              result: result.key,
+              timestamp: Date.now(),
+            },
+            ...prevResults,
+          ])
+          console.log('handleKvGet(), result=', data)
+        },
       })
     }
   }
@@ -176,6 +211,9 @@ export const MachineExample = () => {
         connection: state.context.connection!,
         bucket: kvBucket.trim(),
         key: kvKey.trim(),
+        onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
+          console.log('handleKvDelete(), result=', result)
+        },
       })
     }
   }
@@ -235,16 +273,19 @@ export const MachineExample = () => {
               operation: 'KV.BUCKET_LIST',
               bucket: item,
               result: { ok: true },
-              value: 'value',
+              value: undefined,
               timestamp: Date.now(),
             }
           } else {
-            // Handle KvStatus object
             return {
               operation: 'KV.BUCKET_LIST',
               bucket: item.bucket,
               result: { ok: true },
-              value: item.values || 0,
+              value: ({
+                description: item.description,
+                values: item.values || 0,
+                size: item.size || 0,
+              }),
               timestamp: Date.now(),
             }
           }

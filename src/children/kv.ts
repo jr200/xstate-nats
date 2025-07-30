@@ -1,5 +1,5 @@
 import { NatsConnection, QueuedIterator } from '@nats-io/nats-core'
-import { Kvm, KvOptions, KvStatus, KvWatchEntry } from '@nats-io/kv'
+import { KvEntry, Kvm, KvOptions, KvStatus, KvWatchEntry } from '@nats-io/kv'
 import { assign, sendParent, setup } from 'xstate'
 import { KvSubscriptionKey, KvSubscriptionConfig, kvConsolidateState } from '../actions/kv'
 import { jetstream } from '@nats-io/jetstream'
@@ -43,7 +43,7 @@ export type ExternalEvents =
       connection: NatsConnection | null
       bucket: string
       key: string
-      onResult: (result: any | { error: Error }) => void
+      onResult: (result: KvEntry | null | { error: Error }) => void
     }
   | {
       type: 'KV.PUT'
@@ -53,9 +53,15 @@ export type ExternalEvents =
       value: any
       onResult: (result: { ok: true } | { error: Error }) => void
     }
+  | {
+      type: 'KV.DELETE'
+      connection: NatsConnection | null
+      bucket: string
+      key: string
+      onResult: (result: { ok: true } | { error: Error }) => void
+    }
   | { type: 'KV.SUBSCRIBE'; config: KvSubscriptionConfig }
   | { type: 'KV.UNSUBSCRIBE'; bucket: string; key: string }
-  | { type: 'KV_DELETE'; bucket: string; key: string; onResult: (result: { ok: true } | { error: Error }) => void }
   | { type: 'KV.CLEAR_SUBSCRIBE' }
 
 export type Events = InternalEvents | ExternalEvents
@@ -154,6 +160,52 @@ export const kvManagerLogic = setup({
                 // Stream deletion might fail, but that's okay
                 event.onResult({ ok: false })
               }
+            } catch (error) {
+              event.onResult({ error: error as Error })
+            }
+          },
+        },
+        'KV.GET': {
+          actions: async ({ context, event }) => {
+            try {
+              const kv = await context.kvm?.open(event.bucket)
+              if (!kv) {
+                event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
+                return
+              }
+              const entry = await kv.get(event.key)
+              event.onResult(entry)
+            } catch (error) {
+              event.onResult({ error: error as Error })
+            }
+          },
+        },
+        'KV.PUT': {
+          actions: async ({ context, event }) => {
+            try {
+              const kv = await context.kvm?.open(event.bucket)
+              if (!kv) {
+                event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
+                return
+              }
+
+              await kv.put(event.key, event.value)
+              event.onResult({ ok: true })
+            } catch (error) {
+              event.onResult({ error: error as Error })
+            }
+          },
+        },
+        'KV.DELETE': {
+          actions: async ({ context, event }) => {
+            try {
+              const kv = await context.kvm?.open(event.bucket)
+              if (!kv) {
+                event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
+                return
+              }
+              await kv.delete(event.key)
+              event.onResult({ ok: true })
             } catch (error) {
               event.onResult({ error: error as Error })
             }
