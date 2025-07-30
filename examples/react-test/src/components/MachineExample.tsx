@@ -1,15 +1,16 @@
 import React, { useState } from 'react'
-import { natsMachine, safeStringify } from 'xstate-nats'
+import { natsMachine, safeStringify, KvSubscriptionKey } from 'xstate-nats'
 import { useActor, useSelector } from '@xstate/react'
+import { KvStatus } from '@nats-io/kv'
 
 export const MachineExample = () => {
   const [state, send, actor] = useActor(natsMachine)
   const [subjectInput, setSubjectInput] = useState('test.hello')
   const [receivedMessages, setReceivedMessages] = useState<any[]>([])
+
   // Fix: Use useSelector to properly subscribe to child actor state changes
   const subjectRef = useSelector(actor, state => state.children.subject)
   const subjectState = useSelector(subjectRef, state => state)
-
   const kvRef = useSelector(actor, state => state.children.kv)
   const kvState = useSelector(kvRef, state => state)
 
@@ -20,9 +21,19 @@ export const MachineExample = () => {
   // Publish state
   const [publishResults, setPublishResults] = useState<any[]>([])
 
+  // KV state
+  const [kvBucket, setKvBucket] = useState('test-bucket')
+  const [kvKey, setKvKey] = useState('test-key')
+  const [kvValue, setKvValue] = useState('{"message": "Hello, NATS KV!"}')
+  const [kvResults, setKvResults] = useState<any[]>([])
+
   // Extract active subscriptions and received messages with better error handling
   const activeSubscriptions = subjectState?.context?.subscriptionConfigs
     ? Array.from(subjectState.context.subscriptionConfigs.keys())
+    : []
+
+  const activeKvSubscriptions: string[] = kvState?.context?.subscriptionConfigs
+    ? Array.from(kvState.context.subscriptionConfigs.keys())
     : []
 
   const handleConfigure = async () => {
@@ -130,11 +141,185 @@ export const MachineExample = () => {
     setPublishResults([])
   }
 
+  const handleKvPut = () => {
+    if (kvBucket.trim() && kvKey.trim() && kvValue.trim()) {
+      try {
+        send({
+          type: 'KV.PUT',
+          connection: state.context.connection!,
+          bucket: kvBucket.trim(),
+          key: kvKey.trim(),
+          value: JSON.parse(kvValue.trim()),
+        })
+      } catch (error) {
+        console.error('Invalid JSON value:', error)
+        alert('Invalid JSON value. Please check your input.')
+      }
+    }
+  }
+
+  const handleKvGet = () => {
+    if (kvBucket.trim() && kvKey.trim()) {
+      send({
+        type: 'KV.GET',
+        connection: state.context.connection!,
+        bucket: kvBucket.trim(),
+        key: kvKey.trim(),
+      })
+    }
+  }
+
+  const handleKvDelete = () => {
+    if (kvBucket.trim() && kvKey.trim()) {
+      send({
+        type: 'KV.DELETE',
+        connection: state.context.connection!,
+        bucket: kvBucket.trim(),
+        key: kvKey.trim(),
+      })
+    }
+  }
+
+  const handleKvBucketCreate = () => {
+    if (kvBucket.trim()) {
+      send({
+        type: 'KV.BUCKET_CREATE',
+        connection: state.context.connection!,
+        bucket: kvBucket.trim(),
+        onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
+          console.log('handleKvBucketCreate(), result=', result)
+        },
+      })
+    }
+  }
+
+  const handleKvBucketDelete = () => {
+    if (kvBucket.trim()) {
+      send({
+        type: 'KV.BUCKET_DELETE',
+        connection: state.context.connection!,
+        bucket: kvBucket.trim(),
+        onResult: (result: { ok: true } | { ok: false } | { error: Error }) => {
+          console.log('handleKvBucketDelete(), result=', result)
+        },
+      })
+    }
+  }
+
+  const handleKvBucketList = () => {
+    send({
+      type: 'KV.BUCKET_LIST',
+      connection: state.context.connection!,
+      onResult: (result: KvStatus[] | string[] | { error: Error }) => {
+        console.log('handleKvBucketList(), result=', result)
+
+        // Check if result is an error object first
+        if ('error' in result) {
+          setKvResults(prevResults => [
+            {
+              operation: 'KV.BUCKET_LIST',
+              bucket: '',
+              result: { error: result.error },
+              value: '',
+              timestamp: Date.now(),
+            },
+            ...prevResults,
+          ])
+          return
+        }
+
+        // Now we know result is an array (KvStatus[] | string[])
+        const newItems = result.map((item: KvStatus | string) => {
+          if (typeof item === 'string') {
+            return {
+              operation: 'KV.BUCKET_LIST',
+              bucket: item,
+              result: { ok: true },
+              value: 'value',
+              timestamp: Date.now(),
+            }
+          } else {
+            // Handle KvStatus object
+            return {
+              operation: 'KV.BUCKET_LIST',
+              bucket: item.bucket,
+              result: { ok: true },
+              value: item.values || 0,
+              timestamp: Date.now(),
+            }
+          }
+        })
+
+        setKvResults(prevResults => [...newItems, ...prevResults])
+      },
+    })
+  }
+
+  const handleClearKvResults = () => {
+    setKvResults([])
+  }
+
+  const handleKvSubscribe = () => {
+    if (kvBucket.trim() && kvKey.trim()) {
+      const bucket = kvBucket.trim()
+      const key = kvKey.trim()
+
+      send({
+        type: 'KV.SUBSCRIBE',
+        connection: state.context.connection!,
+        config: {
+          bucket,
+          key,
+          callback: (data: any) => {
+            setKvResults(prevResults => [
+              {
+                operation: 'KV_SUBSCRIPTION',
+                bucket,
+                key,
+                result: { ok: true },
+                value: data,
+                timestamp: Date.now(),
+              },
+              ...prevResults,
+            ])
+          },
+        },
+      })
+    }
+  }
+
+  const handleKvUnsubscribe = (bucket: string, key: string) => {
+    if (bucket.trim() && key.trim()) {
+      send({
+        type: 'KV.UNSUBSCRIBE',
+        connection: state.context.connection!,
+        bucket,
+        key,
+      })
+    }
+  }
+
+  const handleKvUnsubscribeAll = () => {
+    send({
+      type: 'KV.CLEAR_SUBSCRIBE',
+      connection: state.context.connection!,
+    })
+  }
+
   const isConnected = state.matches('connected')
   const canSubscribe = isConnected && subjectInput.trim().length > 0
   const hasSubscriptions = activeSubscriptions.length > 0
   const canRequestReply = isConnected && subjectInput.trim().length > 0 && requestPayload.trim().length > 0
   const canPublish = isConnected && subjectInput.trim().length > 0 && requestPayload.trim().length > 0
+  const canKvPut = isConnected && kvBucket.trim().length > 0 && kvKey.trim().length > 0 && kvValue.trim().length > 0
+  const canKvGet = isConnected && kvBucket.trim().length > 0 && kvKey.trim().length > 0
+  const canKvDelete = isConnected && kvBucket.trim().length > 0 && kvKey.trim().length > 0
+  const canKvBucketCreate = isConnected && kvBucket.trim().length > 0
+  const canKvBucketDelete = isConnected && kvBucket.trim().length > 0
+  const canKvBucketList = isConnected
+  const canKvSubscribe = isConnected && kvBucket.trim().length > 0 && kvKey.trim().length > 0
+  const canKvUnsubscribe = isConnected && kvBucket.trim().length > 0 && kvKey.trim().length > 0
+  const canKvUnsubscribeAll = isConnected
 
   return (
     <div className='min-h-screen bg-gray-50 flex'>
@@ -184,7 +369,7 @@ export const MachineExample = () => {
             {/* Active Subscriptions */}
             <div>
               <h3 className='text-lg font-semibold text-gray-800 mb-3'>Active Subscriptions</h3>
-              {activeSubscriptions.length === 0 ? (
+              {activeSubscriptions.length + activeKvSubscriptions.length === 0 ? (
                 <div className='text-gray-500 text-center py-8'>No active subscriptions</div>
               ) : (
                 <div className='space-y-2'>
@@ -202,6 +387,38 @@ export const MachineExample = () => {
                       </button>
                     </div>
                   ))}
+
+                  <div className='space-y-2 max-h-32 overflow-auto'>
+                    {activeKvSubscriptions.map((item, index) => {
+                      const sub = KvSubscriptionKey.fromKey<string, string>(item)
+                      return (
+                        <div
+                          key={`kv-sub-${index}`}
+                          className='flex items-center justify-between bg-indigo-50 p-2 rounded-lg'
+                        >
+                          <span className='font-mono text-sm text-indigo-700'>
+                            {sub.x} / {sub.y}
+                          </span>
+                          <button
+                            onClick={() => {
+                              handleKvUnsubscribe(sub.x, sub.y)
+                            }}
+                            className='text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded transition-colors duration-200'
+                            title='Unsubscribe from this KV subscription'
+                          >
+                            <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                              <path
+                                strokeLinecap='round'
+                                strokeLinejoin='round'
+                                strokeWidth={2}
+                                d='M6 18L18 6M6 6l12 12'
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -209,7 +426,10 @@ export const MachineExample = () => {
             {/* Messages */}
             <div>
               <h3 className='text-lg font-semibold text-gray-800 mb-3'>Messages</h3>
-              {receivedMessages.length === 0 && requestReplies.length === 0 && publishResults.length === 0 ? (
+              {receivedMessages.length === 0 &&
+              requestReplies.length === 0 &&
+              publishResults.length === 0 &&
+              kvResults.length === 0 ? (
                 <div className='text-gray-500 text-center py-8'>No messages</div>
               ) : (
                 <div className='space-y-4 max-h-96 overflow-auto'>
@@ -305,6 +525,37 @@ export const MachineExample = () => {
                       </div>
                     </div>
                   ))}
+
+                  {/* KV Results */}
+                  {kvResults.map((result, index) => (
+                    <div key={`kv-${index}`} className='bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg'>
+                      <div className='flex items-center justify-between mb-2'>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-mono text-sm text-indigo-600 bg-indigo-100 px-2 py-1 rounded'>
+                            {result.operation}
+                          </span>
+                          <span className='font-mono text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded'>
+                            {result.bucket}
+                            {result.key ? ` / ${result.key}` : ''}
+                          </span>
+                        </div>
+                        <span className='text-xs text-gray-500'>{new Date(result.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                      <div>
+                        <pre className='text-xs text-gray-700 bg-white p-2 rounded border whitespace-pre-wrap overflow-auto'>
+                          {JSON.stringify(result.result, null, 2)}
+                        </pre>
+                        {result.value && (
+                          <>
+                            <div className='text-xs text-gray-500 mt-1'>Value:</div>
+                            <pre className='text-xs text-gray-700 bg-white p-2 rounded border whitespace-pre-wrap overflow-auto'>
+                              {JSON.stringify(result.value, null, 2)}
+                            </pre>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -314,7 +565,7 @@ export const MachineExample = () => {
           <div className='bg-white rounded-xl shadow-lg p-4 border border-gray-200 flex flex-col gap-8'>
             {/* Subscription Controls */}
             <div>
-              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Control Panel</h3>
+              <h3 className='text-lg font-semibold text-gray-800 mb-4'>Subject Controls</h3>
               <div className='flex flex-col gap-4'>
                 <div>
                   <label htmlFor='subject-input' className='block text-sm font-medium text-gray-700 mb-2'>
@@ -382,6 +633,124 @@ export const MachineExample = () => {
                     Clear Messages
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <h3 className='text-lg font-semibold text-gray-800 mb-4'>KV (Key-Value) Panel</h3>
+            <div className='flex flex-col gap-4'>
+              <div>
+                <label htmlFor='kv-bucket' className='block text-sm font-medium text-gray-700 mb-2'>
+                  Bucket
+                </label>
+                <input
+                  id='kv-bucket'
+                  type='text'
+                  value={kvBucket}
+                  onChange={e => setKvBucket(e.target.value)}
+                  placeholder='Enter bucket name'
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  disabled={!isConnected}
+                />
+              </div>
+              <div>
+                <label htmlFor='kv-key' className='block text-sm font-medium text-gray-700 mb-2'>
+                  Key
+                </label>
+                <input
+                  id='kv-key'
+                  type='text'
+                  value={kvKey}
+                  onChange={e => setKvKey(e.target.value)}
+                  placeholder='Enter key'
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  disabled={!isConnected}
+                />
+              </div>
+              <div>
+                <label htmlFor='kv-value' className='block text-sm font-medium text-gray-700 mb-2'>
+                  Value (JSON)
+                </label>
+                <textarea
+                  id='kv-value'
+                  value={kvValue}
+                  onChange={e => setKvValue(e.target.value)}
+                  placeholder='Enter JSON value'
+                  rows={2}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm'
+                  disabled={!isConnected}
+                />
+              </div>
+              <div className='flex gap-2 flex-wrap'>
+                <button
+                  onClick={handleKvBucketCreate}
+                  disabled={!canKvBucketCreate}
+                  className='bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Create Bucket
+                </button>
+                <button
+                  onClick={handleKvBucketDelete}
+                  disabled={!canKvBucketDelete}
+                  className='bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Delete Bucket
+                </button>
+                <button
+                  onClick={handleKvBucketList}
+                  disabled={!isConnected}
+                  className='bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  List Buckets
+                </button>
+                <button
+                  onClick={handleKvPut}
+                  disabled={!canKvPut}
+                  className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  KV Put
+                </button>
+                <button
+                  onClick={handleKvGet}
+                  disabled={!canKvGet}
+                  className='bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  KV Get
+                </button>
+                <button
+                  onClick={handleKvDelete}
+                  disabled={!canKvDelete}
+                  className='bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  KV Delete
+                </button>
+                <button
+                  onClick={handleKvSubscribe}
+                  disabled={!canKvSubscribe}
+                  className='bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Subscribe
+                </button>
+                <button
+                  onClick={() => handleKvUnsubscribe(kvBucket, kvKey)}
+                  disabled={!canKvUnsubscribe}
+                  className='bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Unsubscribe
+                </button>
+                <button
+                  onClick={handleKvUnsubscribeAll}
+                  disabled={!canKvUnsubscribeAll}
+                  className='bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Unsubscribe All
+                </button>
+                <button
+                  onClick={handleClearKvResults}
+                  disabled={kvResults.length === 0}
+                  className='bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-colors duration-200'
+                >
+                  Clear KV Results
+                </button>
               </div>
             </div>
           </div>

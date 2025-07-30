@@ -1,13 +1,218 @@
-import { createMachine } from 'xstate'
+import { NatsConnection, QueuedIterator } from '@nats-io/nats-core'
+import { Kvm, KvOptions, KvStatus, KvWatchEntry } from '@nats-io/kv'
+import { assign, sendParent, setup } from 'xstate'
+import { KvSubscriptionKey, KvSubscriptionConfig, kvConsolidateState } from '../actions/kv'
+import { jetstream } from '@nats-io/jetstream'
 
-export const kvManagerLogic = createMachine({
-  entry: [
-    event => {
-      console.log('CREATED kv machine', event)
-    },
-  ],
-  initial: 'idle',
+export interface Context {
+  uid: string
+  kvm: Kvm | null
+  kvmOpts?: KvOptions
+  subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
+  subscriptionConfigs: Map<string, KvSubscriptionConfig>
+}
+
+// internal events and events from nats connection
+type InternalEvents = { type: 'ERROR'; error: Error }
+
+// events which can be sent to the machine from the user
+export type ExternalEvents =
+  | { type: 'KV.CONNECTED' }
+  | { type: 'KV.DISCONNECTED' }
+  | { type: 'KV.SYNC'; connection: NatsConnection | null; kvm: Kvm | null }
+  | {
+      type: 'KV.BUCKET_LIST'
+      connection: NatsConnection | null
+      bucket?: string
+      onResult: (result: KvStatus[] | string[] | { error: Error }) => void
+    }
+  | {
+      type: 'KV.BUCKET_CREATE'
+      connection: NatsConnection | null
+      bucket: string
+      onResult: (result: { ok: true } | { ok: false } | { error: Error }) => void
+    }
+  | {
+      type: 'KV.BUCKET_DELETE'
+      connection: NatsConnection | null
+      bucket: string
+      onResult: (result: { ok: true } | { ok: false } | { error: Error }) => void
+    }
+  | {
+      type: 'KV.GET'
+      connection: NatsConnection | null
+      bucket: string
+      key: string
+      onResult: (result: any | { error: Error }) => void
+    }
+  | {
+      type: 'KV.PUT'
+      connection: NatsConnection | null
+      bucket: string
+      key: string
+      value: any
+      onResult: (result: { ok: true } | { error: Error }) => void
+    }
+  | { type: 'KV.SUBSCRIBE'; config: KvSubscriptionConfig }
+  | { type: 'KV.UNSUBSCRIBE'; bucket: string; key: string }
+  | { type: 'KV_DELETE'; bucket: string; key: string; onResult: (result: { ok: true } | { error: Error }) => void }
+  | { type: 'KV.CLEAR_SUBSCRIBE' }
+
+export type Events = InternalEvents | ExternalEvents
+
+export const kvManagerLogic = setup({
+  types: {
+    context: {} as Context,
+    events: {} as Events,
+  },
+}).createMachine({
+  /** @xstate-layout N4IgpgJg5mDOIC5QAoC2BDAxgCwJYDswBKAOlgFcAjAKzEwBcB9XCAGzAGIBlAVQCEAUgFEAwgBVGASQByksZICCAGUlchAbQAMAXUSgADgHtYuerkP49IAB6IATJs0kAnAFYAzAEY7rgDQgAT3tXTxJNAA53KOiYrwBfOP80LDxCUgoaOiYCU1x0VlwTfCgOa1h6dHowEnQAMyqAJ2RXRyIOZJwCYjIqWgZmfFz8woIoLV0kECMTMwsrWwQANk0AFhJPNy8ffyCEHzsSV0jY2M8EpIxOtJ7M-swLQgZIbn5hcUZePi4RACVJPg0Ois01yc0mC08jnCJAA7O4Vu4YX5AvYVjDDnZ4YjXOcQB1Ut0Mn0mPd8I8qhAXoJRBIeNJPt8-gDxsDjKDLODEEiDu5FjDPOEkTtEJ4Yc5cfiuulellGKTyc9Pm8JCIlEIFD8PvxGf9ARMDGzZhzQAs4a4SHY7ItXIttiiEN5oTjcfhDBA4FZJWlWTNzMabIgALSLYUIYMSy4E6W3bJsMA+9nzRArOyhy3QiInU4RlJSm7EgZDApFKAJo1JhArTzmzTV23I3bpsLHLNRM6JPGRvNE2XyrKQMt+iswpEkRaChv2eGHHNXQkyu4WWCGAoQSpgRjldeDsEmkWY0IrFYebyTvZomcdr3zmOMMANBqGBo7-0LFaLC0CoX26KHFuthIEiAA */
+  initial: 'kv_idle',
+  context: {
+    uid: new Date().toISOString(),
+    kvm: null,
+    kvmOpts: undefined,
+    subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
+    subscriptionConfigs: new Map<string, KvSubscriptionConfig>(),
+  },
   states: {
-    idle: {},
+    kv_idle: {
+      entry: [
+        assign({
+          subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
+        }),
+      ],
+      on: {
+        'KV.SYNC': {
+          target: 'kv_syncing',
+        },
+      },
+    },
+    kv_connected: {
+      entry: [sendParent({ type: 'KV.CONNECTED' })],
+      on: {
+        'KV.DISCONNECTED': {
+          target: 'kv_idle',
+        },
+        'KV.SYNC': {
+          target: 'kv_syncing',
+        },
+        'KV.BUCKET_LIST': {
+          actions: async ({ context, event }) => {
+            try {
+              if (!context.kvm) {
+                event.onResult({ error: new Error('KVM not initialized') })
+                return
+              }
+
+              const results = []
+              if (event.bucket) {
+                const bucket = await context.kvm.open(event.bucket)
+                for await (const key of await bucket.keys()) {
+                  results.push(key)
+                }
+                event.onResult(results)
+              } else {
+                for await (const status of await context.kvm.list()) {
+                  results.push(status)
+                }
+                event.onResult(results)
+              }
+            } catch (error) {
+              event.onResult({ error: error as Error })
+            }
+          },
+        },
+        'KV.BUCKET_CREATE': {
+          actions: async ({ context, event }) => {
+            try {
+              if (!context.kvm) throw new Error('KVM not initialized')
+
+              for await (const status of context.kvm.list()) {
+                if (status.bucket === event.bucket) {
+                  event.onResult?.({ ok: false })
+                  return
+                }
+              }
+
+              await context.kvm.create(event.bucket)
+              event.onResult?.({ ok: true })
+            } catch (error) {
+              event.onResult?.({ error: error as Error })
+            }
+          },
+        },
+        'KV.BUCKET_DELETE': {
+          actions: async ({ event }) => {
+            try {
+              try {
+                const js = jetstream(event.connection!)
+                const jsm = await js.jetstreamManager()
+                const res = await jsm.streams.delete(`KV_${event.bucket}`)
+                event.onResult({ ok: res })
+              } catch (streamError) {
+                // Stream deletion might fail, but that's okay
+                event.onResult({ ok: false })
+              }
+            } catch (error) {
+              event.onResult({ error: error as Error })
+            }
+          },
+        },
+        'KV.SUBSCRIBE': {
+          actions: [
+            assign({
+              subscriptionConfigs: ({ context, event }) => {
+                const { config } = event
+                const newConfigs = new Map(context.subscriptionConfigs)
+                const newKvKey = KvSubscriptionKey.key(config.bucket, config.key)
+                newConfigs.set(newKvKey, config)
+                return newConfigs
+              },
+            }),
+          ],
+          target: 'kv_syncing',
+        },
+        'KV.UNSUBSCRIBE': {
+          actions: assign(({ context, event }) => {
+            const newConfigs = new Map(context.subscriptionConfigs)
+            const newKvKey = KvSubscriptionKey.key(event.bucket, event.key)
+            newConfigs.delete(newKvKey)
+            return {
+              subscriptionConfigs: newConfigs,
+            }
+          }),
+          target: 'kv_syncing',
+        },
+        'KV.CLEAR_SUBSCRIBE': {
+          actions: assign({ subscriptionConfigs: new Map() }),
+          target: 'kv_syncing',
+        },
+      },
+    },
+    kv_syncing: {
+      entry: [
+        assign(({ context, event }) =>
+          kvConsolidateState({
+            input: {
+              connection: (event as any).connection as NatsConnection,
+              kvm: context.kvm,
+              currentKvSubscriptions: context.subscriptions,
+              targetKvSubscriptions: context.subscriptionConfigs,
+            },
+          })
+        ),
+      ],
+      always: {
+        target: 'kv_connected',
+      },
+    },
+    kv_error: {
+      on: {
+        'KV.SYNC': {
+          target: 'kv_syncing',
+        },
+      },
+    },
   },
 })
