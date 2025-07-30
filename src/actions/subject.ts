@@ -1,4 +1,4 @@
-import { NatsConnection, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
+import { Msg, NatsConnection, RequestOptions, Subscription, SubscriptionOptions } from '@nats-io/nats-core'
 
 export type SubjectSubscriptionConfig = {
   subject: string
@@ -46,14 +46,7 @@ export const subjectConsolidateState = ({
             for await (const msg of sub) {
               try {
                 if (typeof subscriptionConfig.callback === 'function') {
-                  // Try to parse as JSON first, fall back to string
-                  let data
-                  try {
-                    data = msg.json()
-                  } catch (jsonError) {
-                    // If JSON parsing fails, use the raw string
-                    data = msg.string()
-                  }
+                  const data = parseMsg(msg)
                   subscriptionConfig.callback(data)
                 }
               } catch (callbackError) {
@@ -75,4 +68,51 @@ export const subjectConsolidateState = ({
   return {
     subscriptions: syncedSubscriptions,
   }
+}
+
+
+
+export const subjectRequest = ({
+  input,
+}: {
+  input: {
+    connection: NatsConnection | null
+    subject: string
+    payload: any
+    opts?: RequestOptions
+    callback: (data: any) => void
+  }
+}) => {
+
+  const { connection, subject, payload, opts, callback } = input
+  if (!connection) {
+    throw new Error('NATS connection is not available')
+  }
+
+  connection
+  .request(subject, payload, opts)
+  .then((msg: Msg) => {
+    try {
+      if (typeof callback === 'function') {
+        const data = parseMsg(msg)
+        callback(data)
+      }
+    } catch (callbackError) {
+      console.error(`RequestReply callback error for subject "${subject}"`, callbackError)
+    }
+  })
+  .catch(err => {
+    console.error(`RequestReply error for subject "${subject}"`, err)
+  })
+}
+
+const parseMsg = (msg: Msg) => {
+  let data
+  try {
+    data = msg.json()
+  } catch (jsonError) {
+    // If JSON parsing fails, use the raw string
+    data = msg.string()
+  }
+  return data
 }

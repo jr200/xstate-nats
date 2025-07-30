@@ -90,9 +90,6 @@ export const natsMachine = setup({
             assign({
               natsConfig: ({ event }) => event.config,
             }),
-            ({ context }) => {
-              console.log('LOADED_CONFIG', context.natsConfig)
-            },
           ],
         },
       },

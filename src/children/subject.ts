@@ -1,6 +1,6 @@
-import { Subscription, PublishOptions, NatsConnection } from '@nats-io/nats-core'
+import { Subscription, PublishOptions, NatsConnection, RequestOptions } from '@nats-io/nats-core'
 import { assign, sendParent, setup } from 'xstate'
-import { SubjectSubscriptionConfig, subjectConsolidateState } from '../actions/subject'
+import { SubjectSubscriptionConfig, subjectConsolidateState, subjectRequest } from '../actions/subject'
 
 export type PublishParams = {
   payload: Uint8Array | string
@@ -31,7 +31,7 @@ export type ExternalEvents =
   | { type: 'SUBJECT.UNSUBSCRIBE'; connection: NatsConnection; subject: string }
   | { type: 'SUBJECT.CLEAR_SUBSCRIBE'; connection: NatsConnection }
 
-  | { type: 'SUBJECT.REQUEST'; connection: NatsConnection; subject: string; payload: any }
+  | { type: 'SUBJECT.REQUEST'; connection: NatsConnection; subject: string; payload: any; opts?: RequestOptions; callback: (data: any) => void }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -71,7 +71,15 @@ export const subjectManagerLogic = setup({
       on: {
         'SUBJECT.REQUEST': {
           actions: assign(({ context, event }) => {
-            console.log('SUBJECT.REQUEST', context, event)
+            subjectRequest({
+              input: {
+                connection: event.connection,
+                subject: event.subject,
+                payload: event.payload,
+                opts: event.opts,
+                callback: event.callback,
+              },
+            })
             return {}
           }),
         },

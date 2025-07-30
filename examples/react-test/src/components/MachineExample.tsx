@@ -50,7 +50,6 @@ export const MachineExample = () => {
                 timestamp: Date.now(),
               },
             ])
-            console.log(`Received message on ${currentSubject}:`, data)
           },
         },
       })
@@ -61,23 +60,21 @@ export const MachineExample = () => {
   const handleRequestReply = () => {
     if (requestSubject.trim() && requestPayload.trim()) {
       try {
-        const payload = JSON.parse(requestPayload)
         send({
           type: 'SUBJECT.REQUEST',
           connection: state.context.connection!,
           subject: requestSubject.trim(),
-          payload,
+          payload: requestPayload,
           callback: (reply: any) => {
             setRequestReplies([
               ...requestReplies,
               {
                 subject: requestSubject.trim(),
-                request: payload,
+                request: requestPayload,
                 reply,
                 timestamp: Date.now(),
               },
             ])
-            console.log(`Received reply on ${requestSubject}:`, reply)
           },
         })
       } catch (error) {
@@ -242,7 +239,7 @@ export const MachineExample = () => {
             {receivedMessages.length === 0 ? (
               <div className='text-gray-500 text-center py-8'>No messages received</div>
             ) : (
-              <div className='space-y-3 overflow-auto' style={{ maxHeight: '16rem', minHeight: '6rem' }}>
+              <div className='space-y-3 overflow-auto max-h-64' style={{ minHeight: '6rem' }}>
                 {receivedMessages.map((message, index) => (
                   <div key={index} className='bg-gray-50 p-3 rounded-lg'>
                     <div className='flex items-center justify-between mb-2'>
@@ -320,7 +317,7 @@ export const MachineExample = () => {
             {requestReplies.length === 0 ? (
               <div className='text-gray-500 text-center py-8'>No request-reply results</div>
             ) : (
-              <div className='space-y-4 max-h-96 overflow-auto'>
+              <div className='space-y-4 max-h-64 overflow-auto'>
                 {requestReplies.map((result, index) => (
                   <div key={index} className='bg-gray-50 p-4 rounded-lg'>
                     <div className='flex items-center justify-between mb-3'>
