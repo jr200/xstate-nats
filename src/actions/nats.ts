@@ -1,5 +1,6 @@
 import { fromPromise } from 'xstate'
-import { ConnectionOptions, NatsConnection, wsconnect } from '@nats-io/nats-core'
+import { ConnectionOptions, Msg, NatsConnection, wsconnect } from '@nats-io/nats-core'
+import { KvEntry } from '@nats-io/kv'
 
 export const connectToNats = fromPromise(
   async ({ input, self }: { input: { opts: ConnectionOptions }; self: any }): Promise<NatsConnection> => {
@@ -58,3 +59,22 @@ export const disconnectNats = fromPromise(async ({ input }: { input: { connectio
     await input.connection.close()
   }
 })
+
+export const parseNatsResult = (msg: Msg | KvEntry | null | Error) => {
+  if (!msg) {
+    return null
+  }
+
+  if (msg instanceof Error) {
+    return msg
+  }
+
+  let data
+  try {
+    data = msg.json()
+  } catch (jsonError) {
+    // If JSON parsing fails, use the raw string
+    data = msg.string()
+  }
+  return data
+}

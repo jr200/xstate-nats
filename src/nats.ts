@@ -1,6 +1,7 @@
 import { assign, sendTo, setup } from 'xstate'
 import { kvManagerLogic } from './children/kv'
 import { subjectManagerLogic, ExternalEvents as SubjectExternalEvents } from './children/subject'
+import { ExternalEvents as KvExternalEvents } from './children/kv'
 import { ConnectionOptions, NatsConnection } from '@nats-io/nats-core'
 import { connectToNats, disconnectNats } from './actions/nats'
 
@@ -25,7 +26,6 @@ type InternalEvents =
   | { type: 'FAIL'; error: Error }
   | { type: 'RECONNECT' }
   | { type: 'CLOSE' }
-  | { type: 'KV_MANAGER_READY' }
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
@@ -34,6 +34,7 @@ export type ExternalEvents =
   | { type: 'DISCONNECT' }
   | { type: 'RESET' }
   | SubjectExternalEvents
+  | KvExternalEvents
 
 type Events = InternalEvents | ExternalEvents
 
@@ -130,12 +131,15 @@ export const natsMachine = setup({
       ],
     },
     initialise_managers: {
-      entry: [sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! }))],
+      entry: [
+        sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! })),
+        sendTo('kv', ({ context }) => ({ type: 'KV.SYNC', connection: context.connection! })),
+      ],
       on: {
         'SUBJECT.CONNECTED': {
           actions: [assign({ subjectManagerReady: _ => true })],
         },
-        KV_MANAGER_READY: {
+        'KV.CONNECTED': {
           actions: assign({
             kvManagerReady: _ => true,
           }),
@@ -162,7 +166,18 @@ export const natsMachine = setup({
           target: 'closing',
         },
         'SUBJECT.*': {
-          actions: [sendTo('subject', ({ event }: { event: SubjectExternalEvents }) => event)],
+          actions: [
+            sendTo('subject', ({ event, context }: { event: SubjectExternalEvents; context: Context }) => {
+              return { ...event, connection: context.connection }
+            }),
+          ],
+        },
+        'KV.*': {
+          actions: [
+            sendTo('kv', ({ event, context }: { event: KvExternalEvents; context: Context }) => {
+              return { ...event, connection: context.connection }
+            }),
+          ],
         },
       },
     },
@@ -172,6 +187,7 @@ export const natsMachine = setup({
           console.log('CLOSING', event.context.connection?.getServer())
         },
         sendTo('subject', { type: 'SUBJECT.DISCONNECTED' }),
+        sendTo('kv', { type: 'KV.DISCONNECTED' }),
       ],
       invoke: {
         src: 'disconnectNats',

@@ -6,6 +6,7 @@ import {
   Subscription,
   SubscriptionOptions,
 } from '@nats-io/nats-core'
+import { parseNatsResult } from './nats'
 
 export type SubjectSubscriptionConfig = {
   subject: string
@@ -53,7 +54,7 @@ export const subjectConsolidateState = ({
             for await (const msg of sub) {
               try {
                 if (typeof subscriptionConfig.callback === 'function') {
-                  const data = parseMsg(msg)
+                  const data = parseNatsResult(msg)
                   subscriptionConfig.callback(data)
                 }
               } catch (callbackError) {
@@ -98,7 +99,7 @@ export const subjectRequest = ({
     .then((msg: Msg) => {
       try {
         if (typeof callback === 'function') {
-          const data = parseMsg(msg)
+          const data = parseNatsResult(msg)
           callback(data)
         }
       } catch (callbackError) {
@@ -136,15 +137,4 @@ export const subjectPublish = ({
     console.error(`Publish callback error for subject "${subject}"`, callbackError)
     onPublishResult?.({ ok: false, error: callbackError as Error })
   }
-}
-
-const parseMsg = (msg: Msg) => {
-  let data
-  try {
-    data = msg.json()
-  } catch (jsonError) {
-    // If JSON parsing fails, use the raw string
-    data = msg.string()
-  }
-  return data
 }
