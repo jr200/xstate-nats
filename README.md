@@ -1,6 +1,248 @@
 # xstate-nats
 
-## Notes
+A powerful state machine library that integrates [XState](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a robust and type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
 
-- the main machine holds the connection state
-    - all children need access to that connection
+## Features
+
+- **State Machine Management**: Built on XState for predictable state transitions and side effects
+- **NATS Integration**: Full support for NATS Core, JetStream (TODO), and Key-Value operations
+- **Connection Management**: Automatic connection handling with retry logic and error recovery
+- **Subject Management**: Subscribe, publish, and request-reply operations with state tracking
+- **Key-Value Store**: KV bucket and key management with real-time subscriptions
+
+## Installation
+
+```bash
+npm install xstate-nats
+# or
+pnpm add xstate-nats
+# or
+yarn add xstate-nats
+```
+
+## Quick Start
+
+### Basic Setup
+
+```typescript
+import { natsMachine } from 'xstate-nats'
+import { useActor } from '@xstate/react'
+
+function MyComponent() {
+  const [state, send] = useActor(natsMachine)
+
+  const connect = () => {
+    send({
+      type: 'CONFIGURE',
+      config: {
+        opts: {
+          servers: ['nats://localhost:4222']
+        },
+        maxRetries: 3
+      }
+    })
+    
+    send({ type: 'CONNECT' })
+  }
+
+  return (
+    <div>
+      <p>Status: {state.value}</p>
+      <button onClick={connect}>Connect</button>
+    </div>
+  )
+}
+```
+
+### Subject Operations
+
+```typescript
+// Subscribe to a subject
+send({
+  type: 'SUBJECT.SUBSCRIBE',
+  subjectConfig: {
+    subject: 'user.events',
+    callback: (data) => {
+      console.log('Received:', data)
+    }
+  }
+})
+
+// Publish to a subject
+send({
+  type: 'SUBJECT.PUBLISH',
+  subject: 'user.events',
+  payload: { userId: 123, action: 'login' }
+})
+
+// Request-reply pattern
+send({
+  type: 'SUBJECT.REQUEST',
+  subject: 'user.get',
+  payload: { userId: 123 },
+  callback: (reply) => {
+    console.log('Reply:', reply)
+  }
+})
+```
+
+### Key-Value Operations
+
+```typescript
+// Create a KV bucket
+send({
+  type: 'KV.BUCKET_CREATE',
+  bucket: 'user-sessions',
+  onResult: (result) => {
+    if (result.ok) {
+      console.log('Bucket created successfully')
+    }
+  }
+})
+
+// Put a value
+send({
+  type: 'KV.PUT',
+  bucket: 'user-sessions',
+  key: 'user-123',
+  value: { sessionId: 'abc123', expiresAt: Date.now() },
+  onResult: (result) => {
+    if (result.ok) {
+      console.log('Value stored successfully')
+    }
+  }
+})
+
+// Get a value
+send({
+  type: 'KV.GET',
+  bucket: 'user-sessions',
+  key: 'user-123',
+  onResult: (result) => {
+    if ('error' in result) {
+      console.error('Error:', result.error)
+    } else {
+      console.log('Value:', result)
+    }
+  }
+})
+
+// Subscribe to KV changes
+send({
+  type: 'KV.SUBSCRIBE',
+  config: {
+    bucket: 'user-sessions',
+    key: 'user-123',
+    callback: (entry) => {
+      console.log('KV Update:', entry)
+    }
+  }
+})
+```
+
+## State Machine States
+
+The NATS machine operates in the following states:
+
+- **`not_configured`**: Initial state, waiting for configuration
+- **`configured`**: Configuration received, ready to connect
+- **`connecting`**: Attempting to establish NATS connection
+- **`initialise_managers`**: Setting up subject and KV managers
+- **`connected`**: Fully connected and operational
+- **`closing`**: Gracefully disconnecting
+- **`closed`**: Connection closed, can reconnect
+- **`error`**: Error state, can reset and retry
+
+## API Reference
+
+### Main Exports
+
+- `natsMachine`: The main XState machine for NATS operations
+- `safeStringify`: Utility for safe JSON stringification
+- `KvSubscriptionKey`: Type for KV subscription keys
+- `parseNatsResult`: Utility for parsing NATS operation results
+
+### Events
+
+#### Connection Events
+- `CONFIGURE`: Set connection configuration
+- `CONNECT`: Establish connection
+- `DISCONNECT`: Close connection
+- `RESET`: Reset to initial state
+
+#### Subject Events
+- `SUBJECT.SUBSCRIBE`: Subscribe to a subject
+- `SUBJECT.UNSUBSCRIBE`: Unsubscribe from a subject
+- `SUBJECT.PUBLISH`: Publish to a subject
+- `SUBJECT.REQUEST`: Send request-reply
+- `SUBJECT.CLEAR_SUBSCRIBE`: Clear all subscriptions
+
+#### KV Events
+- `KV.BUCKET_CREATE`: Create a KV bucket
+- `KV.BUCKET_DELETE`: Delete a KV bucket
+- `KV.BUCKET_LIST`: List KV buckets
+- `KV.PUT`: Store a value
+- `KV.GET`: Retrieve a value
+- `KV.DELETE`: Delete a value
+- `KV.SUBSCRIBE`: Subscribe to KV changes
+- `KV.UNSUBSCRIBE`: Unsubscribe from KV changes
+
+## Examples
+
+Check out the [React example](./examples/react-test/) for a complete working implementation that demonstrates:
+
+- Connection management
+- Subject subscriptions and publishing
+- Request-reply patterns
+- Key-Value operations
+- Real-time state updates
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm
+- NATS server running locally
+
+### Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start NATS server (if not already running)
+nats-server -c nats-server.conf
+
+# Run the React example
+cd examples/react-test
+pnpm dev
+```
+
+### Scripts
+
+- `pnpm build`: Build the library
+- `pnpm test`: Run tests
+- `pnpm lint`: Run ESLint
+- `pnpm format`: Format code with Prettier
+
+## Contributing
+
+Contributions welcome!
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+MIT
+
+## Dependencies
+
+- [XState](https://xstate.js.org/) - State machine library
+- [@nats-io/nats-core](https://github.com/nats-io/nats.js) - NATS client
+- [@nats-io/jetstream](https://github.com/nats-io/nats.js) - JetStream support
+- [@nats-io/kv](https://github.com/nats-io/nats.js) - Key-Value store

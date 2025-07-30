@@ -1,7 +1,10 @@
 {
   "name": "xstate-nats",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.0",
+  "author": "jr200",
+  "description": "XState machine for NATS",
+  "repository": "https://github.com/jr200/xstate-nats",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,8 +22,6 @@
     "test:watch": "vitest --watch"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "dependencies": {
     "@nats-io/jetstream": "^3.1.0",
