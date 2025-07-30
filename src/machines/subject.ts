@@ -27,7 +27,7 @@ export type ExternalEvents =
   | { type: 'SUBJECT.SYNC' }
   | { type: 'SUBJECT.SUBSCRIBE'; subjectConfig: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
-  | { type: 'SUBJECT.CLEAR_SUBSCRIBE' }
+  | { type: 'SUBJECT.UNSUBSCRIBE_ALL' }
   | {
       type: 'SUBJECT.REQUEST'
       subject: string
@@ -104,7 +104,7 @@ export const subjectManagerLogic = setup({
           }),
           target: 'subject_syncing',
         },
-        'SUBJECT.CLEAR_SUBSCRIBE': {
+        'SUBJECT.UNSUBSCRIBE_ALL': {
           actions: assign({ subscriptionConfigs: new Map() }),
           target: 'subject_syncing',
         },

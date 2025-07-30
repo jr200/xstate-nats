@@ -6,7 +6,7 @@ import {
   Subscription,
   SubscriptionOptions,
 } from '@nats-io/nats-core'
-import { parseNatsResult } from './nats'
+import { parseNatsResult } from './connection'
 
 export type SubjectSubscriptionConfig = {
   subject: string

@@ -1,8 +1,8 @@
 import { NatsConnection, QueuedIterator } from '@nats-io/nats-core'
+import { jetstream } from '@nats-io/jetstream'
 import { KvEntry, Kvm, KvOptions, KvStatus, KvWatchEntry } from '@nats-io/kv'
 import { assign, sendParent, setup } from 'xstate'
 import { KvSubscriptionKey, KvSubscriptionConfig, kvConsolidateState } from '../actions/kv'
-import { jetstream } from '@nats-io/jetstream'
 
 export interface Context {
   uid: string
@@ -57,7 +57,7 @@ export type ExternalEvents =
     }
   | { type: 'KV.SUBSCRIBE'; config: KvSubscriptionConfig }
   | { type: 'KV.UNSUBSCRIBE'; bucket: string; key: string }
-  | { type: 'KV.CLEAR_SUBSCRIBE' }
+  | { type: 'KV.UNSUBSCRIBE_ALL' }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -237,7 +237,7 @@ export const kvManagerLogic = setup({
           }),
           target: 'kv_syncing',
         },
-        'KV.CLEAR_SUBSCRIBE': {
+        'KV.UNSUBSCRIBE_ALL': {
           actions: assign({ subscriptionConfigs: new Map() }),
           target: 'kv_syncing',
         },

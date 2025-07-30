@@ -29,11 +29,11 @@ export const MachineExample = () => {
 
   // Extract active subscriptions and received messages with better error handling
   const activeSubscriptions = subjectState?.context?.subscriptionConfigs
-    ? Array.from(subjectState.context.subscriptionConfigs.keys())
+    ? Array.from<string>(subjectState.context.subscriptionConfigs.keys())
     : []
 
-  const activeKvSubscriptions: string[] = kvState?.context?.subscriptionConfigs
-    ? Array.from(kvState.context.subscriptionConfigs.keys())
+  const activeKvSubscriptions = kvState?.context?.subscriptionConfigs
+    ? Array.from<string>(kvState.context.subscriptionConfigs.keys())
     : []
 
   const handleConfigure = async () => {
@@ -121,7 +121,7 @@ export const MachineExample = () => {
   }
 
   const handleUnsubscribeAll = () => {
-    send({ type: 'SUBJECT.CLEAR_SUBSCRIBE' })
+    send({ type: 'SUBJECT.UNSUBSCRIBE_ALL' })
   }
 
   const handleUnsubscribeOne = (subject: string) => {
@@ -363,7 +363,7 @@ export const MachineExample = () => {
 
   const handleKvUnsubscribeAll = () => {
     send({
-      type: 'KV.CLEAR_SUBSCRIBE',
+      type: 'KV.UNSUBSCRIBE_ALL',
     })
   }
 

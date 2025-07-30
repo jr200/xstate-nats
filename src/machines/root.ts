@@ -1,9 +1,8 @@
-import { assign, sendTo, setup } from 'xstate'
-import { kvManagerLogic } from './children/kv'
-import { subjectManagerLogic, ExternalEvents as SubjectExternalEvents } from './children/subject'
-import { ExternalEvents as KvExternalEvents } from './children/kv'
 import { ConnectionOptions, NatsConnection } from '@nats-io/nats-core'
-import { connectToNats, disconnectNats } from './actions/nats'
+import { assign, sendTo, setup } from 'xstate'
+import { kvManagerLogic, ExternalEvents as KvExternalEvents } from './kv'
+import { subjectManagerLogic, ExternalEvents as SubjectExternalEvents } from './subject'
+import { connectToNats, disconnectNats } from '../actions/connection'
 
 export interface NatsConnectionConfig {
   opts: ConnectionOptions
