@@ -1,7 +1,8 @@
-import { fromPromise } from "xstate"
-import { ConnectionOptions, NatsConnection, wsconnect } from "@nats-io/nats-core"
+import { fromPromise } from 'xstate'
+import { ConnectionOptions, NatsConnection, wsconnect } from '@nats-io/nats-core'
 
-export const connectToNats = fromPromise(async ({ input, self }: { input: { opts: ConnectionOptions }; self: any }): Promise<NatsConnection> => {
+export const connectToNats = fromPromise(
+  async ({ input, self }: { input: { opts: ConnectionOptions }; self: any }): Promise<NatsConnection> => {
     console.log('CONNECTING TO NATS', input.opts)
     const nc = await wsconnect(input.opts)
 
@@ -31,7 +32,7 @@ export const connectToNats = fromPromise(async ({ input, self }: { input: { opts
           case 'forceReconnect':
             self.send({ type: 'RECONNECT' })
             break
-          case 'reconnecting':  
+          case 'reconnecting':
             self.send({ type: 'RECONNECTING' })
             break
           case 'slowConsumer':
@@ -48,8 +49,8 @@ export const connectToNats = fromPromise(async ({ input, self }: { input: { opts
     })()
 
     return nc
-  })
-
+  }
+)
 
 export const disconnectNats = fromPromise(async ({ input }: { input: { connection: NatsConnection | null } }) => {
   console.log('DISCONNECTING FROM NATS', input)

@@ -25,7 +25,6 @@ type InternalEvents =
   | { type: 'FAIL'; error: Error }
   | { type: 'RECONNECT' }
   | { type: 'CLOSE' }
-
   | { type: 'SUBJECT_MANAGER_READY' }
   | { type: 'KV_MANAGER_READY' }
 
@@ -35,9 +34,7 @@ export type ExternalEvents =
   | { type: 'CONNECT' }
   | { type: 'DISCONNECT' }
   | { type: 'RESET' }
-
   | SubjectExternalEvents
-
 
 type Events = InternalEvents | ExternalEvents
 
@@ -113,37 +110,34 @@ export const natsMachine = setup({
       },
     },
     connecting: {
-      invoke: [{
-        src: 'connectToNats',
-        input: ({ context }) => ({ opts: context.natsConfig!.opts }),
-        onDone: {
-          target: 'initialise_managers',
-          actions: [
-            assign({
-              connection: ({ event }) => event.output,
-              retries: _ => 0,
+      invoke: [
+        {
+          src: 'connectToNats',
+          input: ({ context }) => ({ opts: context.natsConfig!.opts }),
+          onDone: {
+            target: 'initialise_managers',
+            actions: [
+              assign({
+                connection: ({ event }) => event.output,
+                retries: _ => 0,
+              }),
+            ],
+          },
+          onError: {
+            target: 'error',
+            actions: assign({
+              error: ({ event }) => event.error as Error,
+              retries: ({ context }) => context.retries + 1,
             }),
-          ],
+          },
         },
-        onError: {
-          target: 'error',
-          actions: assign({
-            error: ({ event }) => event.error as Error,
-            retries: ({ context }) => context.retries + 1,
-          }),
-        },
-      }],
+      ],
     },
     initialise_managers: {
-      entry: [
-        sendTo('subject', { type: 'SUBJECT.INITIALISE' }),
-      ],
+      entry: [sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! }))],
       on: {
         SUBJECT_MANAGER_READY: {
-          actions: [
-            assign({subjectManagerReady: _ => true}),
-            () => console.log('RECEIVED SUBJECT_MANAGER_READY')
-          ],
+          actions: [assign({ subjectManagerReady: _ => true }), () => console.log('RECEIVED SUBJECT_MANAGER_READY')],
         },
         KV_MANAGER_READY: {
           actions: assign({
@@ -172,9 +166,7 @@ export const natsMachine = setup({
           target: 'closing',
         },
         'SUBJECT.*': {
-          actions: [
-            sendTo('subject', ({ event }: { event: SubjectExternalEvents }) => event),
-          ],
+          actions: [sendTo('subject', ({ event }: { event: SubjectExternalEvents }) => event)],
         },
       },
     },
@@ -183,6 +175,7 @@ export const natsMachine = setup({
         event => {
           console.log('CLOSING', event.context.connection?.getServer())
         },
+        sendTo('subject', { type: 'DISCONNECTED' }),
       ],
       invoke: {
         src: 'disconnectNats',

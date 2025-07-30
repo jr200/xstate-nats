@@ -7,14 +7,14 @@ export const MachineExample = () => {
   const [subjectInput, setSubjectInput] = useState('test.hello')
   const [receivedMessages, setReceivedMessages] = useState<any[]>([])
   // Fix: Use useSelector to properly subscribe to child actor state changes
-  const subjectRef = useSelector(actor, (state) => state.children.subject)
-  const subjectState = useSelector(subjectRef, (state) => state)
+  const subjectRef = useSelector(actor, state => state.children.subject)
+  const subjectState = useSelector(subjectRef, state => state)
 
-  const kvRef = useSelector(actor, (state) => state.children.kv)
-  const kvState = useSelector(kvRef, (state) => state)
+  const kvRef = useSelector(actor, state => state.children.kv)
+  const kvState = useSelector(kvRef, state => state)
 
   // Extract active subscriptions and received messages with better error handling
-  const activeSubscriptions = subjectState?.context?.subscriptionConfigs 
+  const activeSubscriptions = subjectState?.context?.subscriptionConfigs
     ? Array.from(subjectState.context.subscriptionConfigs.keys())
     : []
 
@@ -36,29 +36,33 @@ export const MachineExample = () => {
         subjectConfig: {
           subject: subjectInput.trim(),
           kind: 'subscribe',
-          callback: (data) => {
-            setReceivedMessages([...receivedMessages, {
-              subject: subjectInput.trim(),
-              payload: data,
-              timestamp: Date.now()
-            }])
+          callback: data => {
+            setReceivedMessages([
+              ...receivedMessages,
+              {
+                subject: subjectInput.trim(),
+                payload: data,
+                timestamp: Date.now(),
+              },
+            ])
             console.log(`Received message on ${subjectInput}:`, data)
           },
-          timeout: 3000
-        }
+          timeout: 3000,
+        },
       })
-      setSubjectInput('') // Clear input after subscribing
+      setSubjectInput('')
     }
   }
 
   const handleUnsubscribeAll = () => {
-    send({ type: 'SUBJECT.CLEAR_SUBSCRIBE' })
+    send({ type: 'SUBJECT.CLEAR_SUBSCRIBE', connection: state.context.connection! })
   }
 
   const handleUnsubscribeOne = (subject: string) => {
     send({
       type: 'SUBJECT.UNSUBSCRIBE',
-      subject
+      connection: state.context.connection!,
+      subject,
     })
   }
 
@@ -69,7 +73,7 @@ export const MachineExample = () => {
   const isConnected = state.matches('connected')
   const canSubscribe = isConnected && subjectInput.trim().length > 0
   const hasSubscriptions = activeSubscriptions.length > 0
-  
+
   return (
     <div className='min-h-screen bg-gray-50 p-4'>
       {/* Canvas at the top */}
@@ -95,7 +99,7 @@ export const MachineExample = () => {
                 id='subject-input'
                 type='text'
                 value={subjectInput}
-                onChange={(e) => setSubjectInput(e.target.value)}
+                onChange={e => setSubjectInput(e.target.value)}
                 placeholder='Enter NATS subject (e.g., test.hello)'
                 className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 disabled={!isConnected}
@@ -137,7 +141,7 @@ export const MachineExample = () => {
             <div className='text-gray-500 text-center py-8'>No active subscriptions</div>
           ) : (
             <div className='space-y-2'>
-              {activeSubscriptions.map((subject) => (
+              {activeSubscriptions.map(subject => (
                 <div key={subject} className='flex items-center justify-between bg-gray-50 p-3 rounded-lg'>
                   <span className='font-mono text-sm text-gray-700'>{subject}</span>
                   <button
@@ -168,15 +172,10 @@ export const MachineExample = () => {
                     <span className='font-mono text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded'>
                       {message.subject}
                     </span>
-                    <span className='text-xs text-gray-500'>
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </span>
+                    <span className='text-xs text-gray-500'>{new Date(message.timestamp).toLocaleTimeString()}</span>
                   </div>
                   <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto'>
-                    {typeof message.payload === 'string' 
-                      ? message.payload 
-                      : JSON.stringify(message.payload, null, 2)
-                    }
+                    {typeof message.payload === 'string' ? message.payload : JSON.stringify(message.payload, null, 2)}
                   </pre>
                 </div>
               ))}
@@ -220,30 +219,30 @@ export const MachineExample = () => {
 
       {/* Buttons */}
       <div className='mt-8 flex justify-center gap-4'>
-        <button 
+        <button
           onClick={handleConfigure}
-          disabled = {!state.can({ type: 'CONFIGURE', config: { opts: {}, maxRetries: 0 } })}
+          disabled={!state.can({ type: 'CONFIGURE', config: { opts: {}, maxRetries: 0 } })}
           className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-200'
         >
           Configure
         </button>
-        <button 
+        <button
           onClick={() => send({ type: 'CONNECT' })}
-          disabled = {!state.can({ type: 'CONNECT' })}
+          disabled={!state.can({ type: 'CONNECT' })}
           className='bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-200'
         >
           Connect to NATS
         </button>
-        <button 
+        <button
           onClick={() => send({ type: 'DISCONNECT' })}
-          disabled = {!state.can({ type: 'DISCONNECT' })}
+          disabled={!state.can({ type: 'DISCONNECT' })}
           className='bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-200'
         >
           Disconnect
         </button>
-        <button 
+        <button
           onClick={() => send({ type: 'RESET' })}
-          disabled = {!state.can({ type: 'RESET' })}
+          disabled={!state.can({ type: 'RESET' })}
           className='bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-colors duration-200'
         >
           Reset
