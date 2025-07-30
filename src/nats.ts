@@ -25,7 +25,6 @@ type InternalEvents =
   | { type: 'FAIL'; error: Error }
   | { type: 'RECONNECT' }
   | { type: 'CLOSE' }
-  | { type: 'SUBJECT_MANAGER_READY' }
   | { type: 'KV_MANAGER_READY' }
 
 // events which can be sent to the machine from the user
@@ -136,8 +135,8 @@ export const natsMachine = setup({
     initialise_managers: {
       entry: [sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! }))],
       on: {
-        SUBJECT_MANAGER_READY: {
-          actions: [assign({ subjectManagerReady: _ => true }), () => console.log('RECEIVED SUBJECT_MANAGER_READY')],
+        'SUBJECT.CONNECTED': {
+          actions: [assign({ subjectManagerReady: _ => true }), () => console.log('RECEIVED SUBJECT.CONNECTED')],
         },
         KV_MANAGER_READY: {
           actions: assign({
@@ -175,7 +174,7 @@ export const natsMachine = setup({
         event => {
           console.log('CLOSING', event.context.connection?.getServer())
         },
-        sendTo('subject', { type: 'DISCONNECTED' }),
+        sendTo('subject', { type: 'SUBJECT.DISCONNECTED' }),
       ],
       invoke: {
         src: 'disconnectNats',

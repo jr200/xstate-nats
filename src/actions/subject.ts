@@ -47,7 +47,6 @@ export const subjectConsolidateState = ({
         ;(async () => {
           try {
             for await (const msg of sub) {
-              console.log('*****RECEIVED MESSAGE', msg)
               try {
                 if (typeof subscriptionConfig.callback === 'function') {
                   // Try to parse as JSON first, fall back to string

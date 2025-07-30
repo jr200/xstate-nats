@@ -8,27 +8,22 @@ export type PublishParams = {
   onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
 }
 
-export type ReceivedMessage = {
-  subject: string
-  payload: any
-  timestamp: number
-}
-
 export interface Context {
   uid: string
   subscriptions: Map<string, Subscription>
   subscriptionConfigs: Map<string, SubjectSubscriptionConfig>
   queuedPublishes: { subject: string; params: PublishParams }[]
-  receivedMessages: ReceivedMessage[]
   maxQueueLength?: number
   maxMessages?: number
 }
 
 // internal events and events from nats connection
-type InternalEvents = { type: 'ERROR'; error: Error } | { type: 'MESSAGE_RECEIVED'; subject: string; payload: any }
+type InternalEvents =
+  | { type: 'ERROR'; error: Error }
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
+  | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
   | { type: 'SUBJECT.SUBSCRIBE'; connection: NatsConnection; subjectConfig: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; connection: NatsConnection; subject: string }
@@ -50,12 +45,16 @@ export const subjectManagerLogic = setup({
     subscriptions: new Map<string, Subscription>(),
     subscriptionConfigs: new Map<string, SubjectSubscriptionConfig>(),
     queuedPublishes: [],
-    receivedMessages: [],
     maxQueueLength: 1000,
     maxMessages: 100, // Keep last 100 messages
   },
   states: {
     subject_idle: {
+      entry: [
+        assign({
+          subscriptions: new Map<string, Subscription>(),
+        })
+      ],
       on: {
         'SUBJECT.SYNC': {
           target: 'subject_syncing',
@@ -64,10 +63,7 @@ export const subjectManagerLogic = setup({
     },
     subject_connected: {
       entry: [
-        event => {
-          console.log('SUBJECT CONNECTED', event)
-        },
-        sendParent({ type: 'SUBJECT_MANAGER_READY' }),
+        sendParent({ type: 'SUBJECT.CONNECTED' }),
       ],
       on: {
         'SUBJECT.DISCONNECTED': {
