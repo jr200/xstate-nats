@@ -32,6 +32,8 @@ stop-nats-test-server:
 	kill `cat /tmp/nats-xstate-nats-test.pid` || true
 	rm -f /tmp/nats-xstate-nats-test.pid
 
+test:
+	pnpm run test:run
 
 example-react-test: build
 	cd examples/react-test && pnpm install && pnpm run dev

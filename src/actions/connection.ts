@@ -1,11 +1,35 @@
 import { fromPromise } from 'xstate'
-import { ConnectionOptions, Msg, NatsConnection, wsconnect } from '@nats-io/nats-core'
+import { ConnectionOptions, credsAuthenticator, Msg, NatsConnection, wsconnect } from '@nats-io/nats-core'
 import { KvEntry } from '@nats-io/kv'
+import { type AuthConfig } from './types'
+
+const makeAuthConfig = (authConfig?: AuthConfig) => {
+  if (!authConfig) {
+    return {}
+  }
+
+  if (authConfig.type === 'decentralised') {
+    return {
+      authenticator: credsAuthenticator(new TextEncoder().encode(authConfig.sentinel)),
+      user: authConfig.user,
+      pass: authConfig.pass,
+    }
+  }
+
+  throw new Error(`Unsupported auth config type ${authConfig.type}`)
+}
 
 export const connectToNats = fromPromise(
-  async ({ input, self }: { input: { opts: ConnectionOptions }; self: any }): Promise<NatsConnection> => {
-    console.log('CONNECTING TO NATS', input.opts)
-    const nc = await wsconnect(input.opts)
+  async ({
+    input,
+    self,
+  }: {
+    input: { opts: ConnectionOptions; authConfig?: AuthConfig }
+    self: any
+  }): Promise<NatsConnection> => {
+    const mergedOpts = { ...input.opts, ...makeAuthConfig(input.authConfig) }
+    console.log('CONNECTING TO NATS', mergedOpts)
+    const nc = await wsconnect(mergedOpts)
 
     // Emit status events into the machine
     ;(async () => {

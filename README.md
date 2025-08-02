@@ -158,7 +158,6 @@ The NATS machine operates in the following states:
 ### Main Exports
 
 - `natsMachine`: The main XState machine for NATS operations
-- `safeStringify`: Utility for safe JSON stringification
 - `KvSubscriptionKey`: Type for KV subscription keys
 - `parseNatsResult`: Utility for parsing NATS operation results
 

@@ -1,17 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { safeStringify } from './utils'
+import { Pair } from './utils'
 
-describe('safeStringify', () => {
-  it('should safely stringify objects with circular references', () => {
-    // Create an object with a circular reference
-    const obj: any = { name: 'test', data: {} }
-    obj.data.self = obj
+describe('Pair', () => {
+  it('should create a pair and convert to key', () => {
+    const pair = new Pair('test', 123)
+    const key = pair.toKey()
 
-    const result = safeStringify(obj)
+    expect(key).toBe('Pair(test, 123)')
+    expect(pair.x).toBe('test')
+    expect(pair.y).toBe(123)
+  })
 
-    // Should not throw and should handle circular reference
-    expect(result).toContain('[Circular Reference]')
-    expect(result).toContain('"name":"test"')
-    expect(typeof result).toBe('string')
+  it('should parse pair from key', () => {
+    const key = 'Pair(hello, 456)'
+    const pair = Pair.fromKey(key)
+
+    expect(pair.x).toBe('hello')
+    expect(pair.y).toBe('456')
+  })
+
+  it('should check equality correctly', () => {
+    const pair1 = new Pair('a', 'b')
+    const pair2 = new Pair('a', 'b')
+    const pair3 = new Pair('a', 'c')
+
+    expect(pair1.equals(pair2)).toBe(true)
+    expect(pair1.equals(pair3)).toBe(false)
   })
 })
