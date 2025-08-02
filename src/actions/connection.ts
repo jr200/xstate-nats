@@ -3,20 +3,29 @@ import { ConnectionOptions, credsAuthenticator, Msg, NatsConnection, wsconnect }
 import { KvEntry } from '@nats-io/kv'
 import { type AuthConfig } from './types'
 
-const makeAuthConfig = (authConfig?: AuthConfig) => {
-  if (!authConfig) {
+const makeAuthConfig = (auth?: AuthConfig) => {
+  if (!auth) {
     return {}
   }
 
-  if (authConfig.type === 'decentralised') {
+  if (auth.type === 'decentralised') {
     return {
-      authenticator: credsAuthenticator(new TextEncoder().encode(authConfig.sentinel)),
-      user: authConfig.user,
-      pass: authConfig.pass,
+      authenticator: credsAuthenticator(new TextEncoder().encode(auth.sentinel)),
+      user: auth.user,
+      pass: auth.pass,
+    }
+  } else if (auth.type === 'userpass') {
+    return {
+      user: auth.user,
+      pass: auth.pass,
+    }
+  } else if (auth.type === 'token') {
+    return {
+      token: auth.token,
     }
   }
 
-  throw new Error(`Unsupported auth config type ${authConfig.type}`)
+  throw new Error(`Unsupported auth config type ${auth.type}`)
 }
 
 export const connectToNats = fromPromise(
@@ -24,10 +33,10 @@ export const connectToNats = fromPromise(
     input,
     self,
   }: {
-    input: { opts: ConnectionOptions; authConfig?: AuthConfig }
+    input: { opts: ConnectionOptions; auth?: AuthConfig }
     self: any
   }): Promise<NatsConnection> => {
-    const mergedOpts = { ...input.opts, ...makeAuthConfig(input.authConfig) }
+    const mergedOpts = { ...input.opts, ...makeAuthConfig(input.auth) }
     console.log('CONNECTING TO NATS', mergedOpts)
     const nc = await wsconnect(mergedOpts)
 

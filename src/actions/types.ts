@@ -1,6 +1,7 @@
 export interface AuthConfig {
-  type: 'decentralised'
-  sentinel: string
-  user: string
-  pass: string
+  type: 'decentralised' | 'userpass' | 'token'
+  sentinel?: string
+  user?: string
+  pass?: string
+  token?: string
 }
