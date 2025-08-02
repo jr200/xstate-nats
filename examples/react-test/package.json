@@ -1,5 +1,5 @@
 {
-  "name": "@xstate-nats/react-test",
+  "name": "@jr200/xstate-nats-react-test",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "xstate": "^5.20.1",
-    "xstate-nats": "workspace:*"
+    "@jr200/xstate-nats": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.1.1",

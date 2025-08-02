@@ -1,6 +1,6 @@
 # xstate-nats
 
-A powerful state machine library that integrates [XState v5](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a robust and type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
+A state machine library that integrates [XState v5](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
 
 ## Features
 
@@ -13,11 +13,11 @@ A powerful state machine library that integrates [XState v5](https://xstate.js.o
 ## Installation
 
 ```bash
-npm install xstate-nats
+npm install @jr200/xstate-nats
 # or
-pnpm add xstate-nats
+pnpm add @jr200/xstate-nats
 # or
-yarn add xstate-nats
+yarn add @jr200/xstate-nats
 ```
 
 ## Quick Start
@@ -25,7 +25,7 @@ yarn add xstate-nats
 ### Basic Setup
 
 ```typescript
-import { natsMachine } from 'xstate-nats'
+import { natsMachine } from '@jr200/xstate-nats'
 import { useActor } from '@xstate/react'
 
 function MyComponent() {

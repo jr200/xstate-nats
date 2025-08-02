@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { natsMachine, safeStringify, KvSubscriptionKey, parseNatsResult } from 'xstate-nats'
+import { natsMachine, safeStringify, KvSubscriptionKey, parseNatsResult } from '@jr200/xstate-nats'
 import { useActor, useSelector } from '@xstate/react'
 import { KvEntry, KvStatus } from '@nats-io/kv'
 
