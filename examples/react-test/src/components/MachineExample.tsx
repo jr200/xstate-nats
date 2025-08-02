@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
-import { natsMachine, safeStringify, KvSubscriptionKey, parseNatsResult } from '@jr200/xstate-nats'
+import { natsMachine, prettyFormat, KvSubscriptionKey, parseNatsResult } from '@jr200/xstate-nats'
 import { useActor, useSelector } from '@xstate/react'
 import { KvEntry, KvStatus } from '@nats-io/kv'
+import configContent from '/config.yaml.txt?raw'
+import yaml from 'js-yaml'
 
 export const MachineExample = () => {
   const [state, send, actor] = useActor(natsMachine)
@@ -38,9 +40,8 @@ export const MachineExample = () => {
 
   const handleConfigure = async () => {
     try {
-      const response = await fetch('/config.json')
-      const config = await response.json()
-      send({ type: 'CONFIGURE', config })
+      const yamlConfig = yaml.load(configContent)
+      send({ type: 'CONFIGURE', config: yamlConfig })
     } catch (error) {
       console.error('Failed to load config:', error)
     }
@@ -826,7 +827,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>Root State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {safeStringify(state, 2)}
+                {prettyFormat(state, 2)}
               </pre>
             </div>
           </div>
@@ -836,7 +837,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>Subject State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {safeStringify(subjectState, 2)}
+                {prettyFormat(subjectState, 2)}
               </pre>
             </div>
           </div>
@@ -846,7 +847,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>KV State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {safeStringify(kvState, 2)}
+                {prettyFormat(kvState, 2)}
               </pre>
             </div>
           </div>
