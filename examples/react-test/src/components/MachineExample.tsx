@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { natsMachine, prettyFormat, KvSubscriptionKey, parseNatsResult } from '@jr200/xstate-nats'
+import { natsMachine, KvSubscriptionKey, parseNatsResult } from '@jr200/xstate-nats'
 import { useActor, useSelector } from '@xstate/react'
 import { KvEntry, KvStatus } from '@nats-io/kv'
 import configContent from '/config.yaml.txt?raw'
+import { format as prettyFormat } from 'pretty-format'
 import yaml from 'js-yaml'
 
 export const MachineExample = () => {
@@ -827,7 +828,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>Root State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {prettyFormat(state, 2)}
+                {prettyFormat(state)}
               </pre>
             </div>
           </div>
@@ -837,7 +838,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>Subject State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {prettyFormat(subjectState, 2)}
+                {prettyFormat(subjectState)}
               </pre>
             </div>
           </div>
@@ -847,7 +848,7 @@ export const MachineExample = () => {
             <h4 className='text-md font-semibold text-gray-700 mb-2'>KV State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>
-                {prettyFormat(kvState, 2)}
+                {prettyFormat(kvState)}
               </pre>
             </div>
           </div>
