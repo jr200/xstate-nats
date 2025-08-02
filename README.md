@@ -1,4 +1,4 @@
-# xstate-nats
+# @jr200/xstate-nats
 
 A state machine library that integrates [XState v5](https://xstate.js.org/) with [NATS](https://nats.io/) messaging system, providing a type-safe way to manage NATS connections, subscriptions, and Key-Value operations.
 

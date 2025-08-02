@@ -8,10 +8,10 @@ describe('safeStringify', () => {
     obj.data.self = obj
 
     const result = safeStringify(obj)
-    
+
     // Should not throw and should handle circular reference
     expect(result).toContain('[Circular Reference]')
     expect(result).toContain('"name":"test"')
     expect(typeof result).toBe('string')
   })
-}) 
+})

@@ -30,6 +30,6 @@ jobs:
     uses: jr200/github-action-templates/.github/workflows/publish_release.yml@main
     with:
       tag: ${{ fromJson(needs.configure.outputs.context).tag }}
-      npmjs_run_id: ${{ fromJson(needs.configure.outputs.context).npmjs_run_id }}
+      artifact_run_id: ${{ fromJson(needs.configure.outputs.context).npmjs_run_id }}
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}

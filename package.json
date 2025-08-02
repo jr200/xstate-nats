@@ -1,6 +1,6 @@
 {
   "name": "@jr200/xstate-nats",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "author": "jr200",
   "description": "XState machine for NATS",
   "repository": "https://github.com/jr200/xstate-nats",
