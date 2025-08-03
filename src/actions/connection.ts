@@ -9,19 +9,20 @@ const makeAuthConfig = (auth?: AuthConfig) => {
   }
 
   if (auth.type === 'decentralised') {
+    const decodedSentinel = atob(auth!.sentinelB64!)
     return {
-      authenticator: credsAuthenticator(new TextEncoder().encode(auth.sentinel)),
+      authenticator: credsAuthenticator(new TextEncoder().encode(decodedSentinel)),
       user: auth.user,
-      pass: auth.pass,
+      pass: auth.pass
     }
   } else if (auth.type === 'userpass') {
     return {
       user: auth.user,
-      pass: auth.pass,
+      pass: auth.pass
     }
   } else if (auth.type === 'token') {
     return {
-      token: auth.token,
+      token: auth.token
     }
   }
 
@@ -36,7 +37,10 @@ export const connectToNats = fromPromise(
     input: { opts: ConnectionOptions; auth?: AuthConfig }
     self: any
   }): Promise<NatsConnection> => {
-    const mergedOpts = { ...input.opts, ...makeAuthConfig(input.auth) }
+    const mergedOpts: ConnectionOptions = {
+        ...input.opts,
+        ...makeAuthConfig(input.auth)
+    }
     console.log('CONNECTING TO NATS', mergedOpts)
     const nc = await wsconnect(mergedOpts)
 

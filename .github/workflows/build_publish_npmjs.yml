@@ -7,6 +7,11 @@ on:
 
   workflow_dispatch:
     inputs:
+      checkout-ref:
+        description: "checkout ref"
+        required: false
+        type: string
+        default: "refs/heads/master"
       pnpm-run-test:
         description: "pnpm run test:run"
         required: false
@@ -34,6 +39,7 @@ jobs:
     needs: configure
     uses: jr200/github-action-templates/.github/workflows/build_publish_npmjs.yml@main
     with:
+      checkout-ref: ${{ fromJson(needs.configure.outputs.context).checkout-ref }}
       pnpm-run-test: ${{ fromJson(needs.configure.outputs.context).pnpm-run-test }}
       pnpm-publish-args: ${{ fromJson(needs.configure.outputs.context).pnpm-publish-args }}
       node-version: ${{ fromJson(needs.configure.outputs.context).node-version }}

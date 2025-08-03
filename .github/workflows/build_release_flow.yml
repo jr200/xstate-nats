@@ -21,6 +21,7 @@ jobs:
               "ref": "${{ github.ref }}",
               "sha": "${{ github.sha }}",
               "tag": "${{ env.TAG }}",
+              "checkout-ref": "${{ env.TAG }}",
               "pnpm-run-test": "false",
               "pnpm-publish-args": "",
               "node-version": "20"
