@@ -3,9 +3,11 @@ import { assign, sendTo, setup } from 'xstate'
 import { kvManagerLogic, ExternalEvents as KvExternalEvents } from './kv'
 import { subjectManagerLogic, ExternalEvents as SubjectExternalEvents } from './subject'
 import { connectToNats, disconnectNats } from '../actions/connection'
+import { type AuthConfig } from '../actions/types'
 
 export interface NatsConnectionConfig {
   opts: ConnectionOptions
+  auth?: AuthConfig
   maxRetries: number
 }
 
@@ -109,7 +111,7 @@ export const natsMachine = setup({
       invoke: [
         {
           src: 'connectToNats',
-          input: ({ context }) => ({ opts: context.natsConfig!.opts }),
+          input: ({ context }) => ({ opts: context.natsConfig!.opts, auth: context.natsConfig!.auth }),
           onDone: {
             target: 'initialise_managers',
             actions: [
