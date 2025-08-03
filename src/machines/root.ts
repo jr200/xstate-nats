@@ -93,6 +93,13 @@ export const natsMachine = setup({
               natsConfig: ({ event }) => event.config,
             }),
           ],
+          '*': {
+            actions: [
+              ({ event }: { event: any }) => {
+                console.error('root received unexpected event', event)
+              },
+            ],
+          },
         },
       },
     },
@@ -104,6 +111,13 @@ export const natsMachine = setup({
         RESET: {
           target: 'not_configured',
           actions: ['doReset'],
+        },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('root received unexpected event', event)
+            },
+          ],
         },
       },
     },
@@ -145,6 +159,13 @@ export const natsMachine = setup({
             kvManagerReady: _ => true,
           }),
         },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('root received unexpected event', event)
+            },
+          ],
+        },
       },
       always: [
         {
@@ -178,6 +199,13 @@ export const natsMachine = setup({
             sendTo('kv', ({ event, context }: { event: KvExternalEvents; context: Context }) => {
               return { ...event, connection: context.connection }
             }),
+          ],
+        },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('root received unexpected event', event)
+            },
           ],
         },
       },
@@ -214,6 +242,13 @@ export const natsMachine = setup({
           target: 'connecting',
         },
       },
+      '*': {
+        actions: [
+          ({ event }: { event: any }) => {
+            console.error('root received unexpected event', event)
+          },
+        ],
+      },
     },
     error: {
       on: {
@@ -221,6 +256,13 @@ export const natsMachine = setup({
           target: 'not_configured',
           actions: ['doReset'],
         },
+      },
+      '*': {
+        actions: [
+          ({ event }: { event: any }) => {
+            console.error('root received unexpected event', event)
+          },
+        ],
       },
     },
   },

@@ -13,16 +13,16 @@ const makeAuthConfig = (auth?: AuthConfig) => {
     return {
       authenticator: credsAuthenticator(new TextEncoder().encode(decodedSentinel)),
       user: auth.user,
-      pass: auth.pass
+      pass: auth.pass,
     }
   } else if (auth.type === 'userpass') {
     return {
       user: auth.user,
-      pass: auth.pass
+      pass: auth.pass,
     }
   } else if (auth.type === 'token') {
     return {
-      token: auth.token
+      token: auth.token,
     }
   }
 
@@ -38,8 +38,8 @@ export const connectToNats = fromPromise(
     self: any
   }): Promise<NatsConnection> => {
     const mergedOpts: ConnectionOptions = {
-        ...input.opts,
-        ...makeAuthConfig(input.auth)
+      ...input.opts,
+      ...makeAuthConfig(input.auth),
     }
     console.log('CONNECTING TO NATS', mergedOpts)
     const nc = await wsconnect(mergedOpts)
@@ -47,6 +47,8 @@ export const connectToNats = fromPromise(
     // Emit status events into the machine
     ;(async () => {
       for await (const status of nc.status()) {
+        console.log('Received nats-server status', status)
+
         switch (status.type) {
           case 'disconnect':
             self.send({ type: 'DISCONNECTED' })
@@ -55,17 +57,17 @@ export const connectToNats = fromPromise(
             self.send({ type: 'RECONNECT' })
             break
           case 'error':
-            self.send({ type: 'FAIL', error: status.error })
+            console.log('ERROR', status)
+            // self.send({ type: 'FAIL', error: status.error })
             break
           case 'close':
             self.send({ type: 'CLOSE' })
             break
           case 'ldm':
-            self.send({ type: 'LDM' })
+            // self.send({ type: 'LDM' })
             break
           case 'ping':
-            self.send({ type: 'PING' })
-            console.log('PING', status)
+            console.log('Received ping, sending pong')
             break
           case 'forceReconnect':
             self.send({ type: 'RECONNECT' })
@@ -74,16 +76,17 @@ export const connectToNats = fromPromise(
             self.send({ type: 'RECONNECTING' })
             break
           case 'slowConsumer':
-            self.send({ type: 'SLOW_CONSUMER' })
+            // self.send({ type: 'SLOW_CONSUMER' })
             break
           case 'staleConnection':
-            self.send({ type: 'STALE_CONNECTION' })
+            // self.send({ type: 'STALE_CONNECTION' })
             break
           case 'update':
-            self.send({ type: 'UPDATE' })
+            // self.send({ type: 'UPDATE' })
             break
         }
       }
+      console.log('END STATUS LOOP')
     })()
 
     return nc

@@ -91,6 +91,13 @@ export const kvManagerLogic = setup({
         'KV.SYNC': {
           target: 'kv_syncing',
         },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('kv received unexpected event', event)
+            },
+          ],
+        },
       },
     },
     kv_connected: {
@@ -241,6 +248,13 @@ export const kvManagerLogic = setup({
           actions: assign({ subscriptionConfigs: new Map() }),
           target: 'kv_syncing',
         },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('kv received unexpected event', event)
+            },
+          ],
+        },
       },
     },
     kv_syncing: {
@@ -271,6 +285,13 @@ export const kvManagerLogic = setup({
       on: {
         'KV.SYNC': {
           target: 'kv_syncing',
+        },
+        '*': {
+          actions: [
+            ({ event }: { event: any }) => {
+              console.error('kv received unexpected event', event)
+            },
+          ],
         },
       },
     },
