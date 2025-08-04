@@ -72,13 +72,13 @@ export const subjectManagerLogic = setup({
         'SUBJECT.SYNC': {
           target: 'subject_syncing',
         },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('subject received unexpected event', event)
-            },
-          ],
-        },
+        // '*': {
+        //   actions: [
+        //     ({ event }: { event: any }) => {
+        //       console.error('subject received unexpected event', event)
+        //     },
+        //   ],
+        // },
       },
     },
     subject_connected: {
@@ -143,13 +143,13 @@ export const subjectManagerLogic = setup({
             return {}
           }),
         },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('subject received unexpected event', event)
-            },
-          ],
-        },
+        // '*': {
+        //   actions: [
+        //     ({ event }: { event: any }) => {
+        //       console.error('subject received unexpected event', event)
+        //     },
+        //   ],
+        // },
       },
     },
     subject_syncing: {

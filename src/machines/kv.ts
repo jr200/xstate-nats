@@ -10,6 +10,7 @@ export interface Context {
   kvmOpts?: KvOptions
   subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
   subscriptionConfigs: Map<string, KvSubscriptionConfig>
+  syncRequired: number
   error?: Error
 }
 
@@ -69,6 +70,11 @@ export const kvManagerLogic = setup({
   actors: {
     kvConsolidateState: kvConsolidateState,
   },
+  guards: {
+    isPendingSync: ({ context }) => {
+      return context.syncRequired > 0
+    },
+  },
 }).createMachine({
   /** @xstate-layout N4IgpgJg5mDOIC5QAoC2BDAxgCwJYDswBKAOlgFcAjAKzEwBcB9XCAGzAGIBlAVQCEAUgFEAwgBVGASQByksZICCAGUlchAbQAMAXUSgADgHtYuerkP49IAB6IATJs0kAnAFYAzAEY7rgDQgAT3tXTxJNAA53KOiYrwBfOP80LDxCUgoaOiYCU1x0VlwTfCgOa1h6dHowEnQAMyqAJ2RXRyIOZJwCYjIqWgZmfFz8woIoLV0kECMTMwsrWwQANk0AFhJPNy8ffyCEHzsSV0jY2M8EpIxOtJ7M-swLQgZIbn5hcUZePi4RACVJPg0Ois01yc0mC08jnCJAA7O4Vu4YX5AvYVjDDnZ4YjXOcQB1Ut0Mn0mPd8I8qhAXoJRBIeNJPt8-gDxsDjKDLODEEiDu5FjDPOEkTtEJ4Yc5cfiuulellGKTyc9Pm8JCIlEIFD8PvxGf9ARMDGzZhzQAs4a4SHY7ItXIttiiEN5oTjcfhDBA4FZJWlWTNzMabIgALSLYUIYMSy4E6W3bJsMA+9nzRArOyhy3QiInU4RlJSm7EgZDApFKAJo1JhArTzmzTV23I3bpsLHLNRM6JPGRvNE2XyrKQMt+iswpEkRaChv2eGHHNXQkyu4WWCGAoQSpgRjldeDsEmkWY0IrFYebyTvZomcdr3zmOMMANBqGBo7-0LFaLC0CoX26KHFuthIEiAA */
   initial: 'kv_idle',
@@ -78,6 +84,40 @@ export const kvManagerLogic = setup({
     kvmOpts: undefined,
     subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
     subscriptionConfigs: new Map<string, KvSubscriptionConfig>(),
+    syncRequired: 0,
+  },
+  on: {
+    'KV.SUBSCRIBE': {
+      actions: [
+        assign({
+          subscriptionConfigs: ({ context, event }) => {
+            const { config } = event
+            const newConfigs = new Map(context.subscriptionConfigs)
+            const newKvKey = KvSubscriptionKey.key(config.bucket, config.key)
+            newConfigs.set(newKvKey, config)
+            return newConfigs
+          },
+          syncRequired: ({ context }) => context.syncRequired + 1,
+        }),
+      ],
+      target: '.kv_syncing',
+    },
+    'KV.UNSUBSCRIBE': {
+      actions: assign(({ context, event }) => {
+        const newConfigs = new Map(context.subscriptionConfigs)
+        const newKvKey = KvSubscriptionKey.key(event.bucket, event.key)
+        newConfigs.delete(newKvKey)
+        return {
+          subscriptionConfigs: newConfigs,
+          syncRequired: context.syncRequired + 1,
+        }
+      }),
+      target: '.kv_syncing',
+    },
+    'KV.UNSUBSCRIBE_ALL': {
+      actions: assign({ subscriptionConfigs: new Map(), syncRequired: ({ context }) => context.syncRequired + 1 }),
+      target: '.kv_syncing',
+    },
   },
   states: {
     kv_idle: {
@@ -91,17 +131,21 @@ export const kvManagerLogic = setup({
         'KV.SYNC': {
           target: 'kv_syncing',
         },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('kv received unexpected event', event)
-            },
-          ],
-        },
+        // '*': {
+        //   actions: [
+        //     ({ event }: { event: any }) => {
+        //       console.error('kv received unexpected event', event)
+        //     },
+        //   ],
+        // },
       },
     },
     kv_connected: {
       entry: [sendParent({ type: 'KV.CONNECTED' })],
+      always: {
+        target: 'kv_syncing',
+        guard: 'isPendingSync',
+      },
       on: {
         'KV.DISCONNECTED': {
           target: 'kv_idle',
@@ -219,42 +263,42 @@ export const kvManagerLogic = setup({
             }
           },
         },
-        'KV.SUBSCRIBE': {
-          actions: [
-            assign({
-              subscriptionConfigs: ({ context, event }) => {
-                const { config } = event
-                const newConfigs = new Map(context.subscriptionConfigs)
-                const newKvKey = KvSubscriptionKey.key(config.bucket, config.key)
-                newConfigs.set(newKvKey, config)
-                return newConfigs
-              },
-            }),
-          ],
-          target: 'kv_syncing',
-        },
-        'KV.UNSUBSCRIBE': {
-          actions: assign(({ context, event }) => {
-            const newConfigs = new Map(context.subscriptionConfigs)
-            const newKvKey = KvSubscriptionKey.key(event.bucket, event.key)
-            newConfigs.delete(newKvKey)
-            return {
-              subscriptionConfigs: newConfigs,
-            }
-          }),
-          target: 'kv_syncing',
-        },
-        'KV.UNSUBSCRIBE_ALL': {
-          actions: assign({ subscriptionConfigs: new Map() }),
-          target: 'kv_syncing',
-        },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('kv received unexpected event', event)
-            },
-          ],
-        },
+        // 'KV.SUBSCRIBE': {
+        //   actions: [
+        //     assign({
+        //       subscriptionConfigs: ({ context, event }) => {
+        //         const { config } = event
+        //         const newConfigs = new Map(context.subscriptionConfigs)
+        //         const newKvKey = KvSubscriptionKey.key(config.bucket, config.key)
+        //         newConfigs.set(newKvKey, config)
+        //         return newConfigs
+        //       },
+        //     }),
+        //   ],
+        //   target: 'kv_syncing',
+        // },
+        // 'KV.UNSUBSCRIBE': {
+        //   actions: assign(({ context, event }) => {
+        //     const newConfigs = new Map(context.subscriptionConfigs)
+        //     const newKvKey = KvSubscriptionKey.key(event.bucket, event.key)
+        //     newConfigs.delete(newKvKey)
+        //     return {
+        //       subscriptionConfigs: newConfigs,
+        //     }
+        //   }),
+        //   target: 'kv_syncing',
+        // },
+        // 'KV.UNSUBSCRIBE_ALL': {
+        //   actions: assign({ subscriptionConfigs: new Map() }),
+        //   target: 'kv_syncing',
+        // },
+        // '*': {
+        //   actions: [
+        //     ({ event }: { event: any }) => {
+        //       console.error('kv received unexpected event', event)
+        //     },
+        //   ],
+        // },
       },
     },
     kv_syncing: {
@@ -271,6 +315,7 @@ export const kvManagerLogic = setup({
           actions: assign(({ event }) => ({
             kvm: event.output.kvm,
             subscriptions: event.output.subscriptions,
+            syncRequired: 0,
           })),
         },
         onError: {

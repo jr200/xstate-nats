@@ -58,7 +58,7 @@ export const natsMachine = setup({
     allManagersReady: ({ context }) => {
       const hasValidConnection = context.connection !== null
       const subjectReady = context.subjectManagerReady
-      const kvReady = context.kvManagerReady || true
+      const kvReady = context.kvManagerReady
       return hasValidConnection && subjectReady && kvReady
     },
   },
@@ -155,16 +155,7 @@ export const natsMachine = setup({
           actions: [assign({ subjectManagerReady: _ => true })],
         },
         'KV.CONNECTED': {
-          actions: assign({
-            kvManagerReady: _ => true,
-          }),
-        },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('root received unexpected event', event)
-            },
-          ],
+          actions: [assign({ kvManagerReady: _ => true })],
         },
       },
       always: [
@@ -189,6 +180,9 @@ export const natsMachine = setup({
         },
         'SUBJECT.*': {
           actions: [
+            ({ event }: any) => {
+              console.log('xstat-nats forwarding subject event', event)
+            },
             sendTo('subject', ({ event, context }: { event: SubjectExternalEvents; context: Context }) => {
               return { ...event, connection: context.connection }
             }),
@@ -196,6 +190,9 @@ export const natsMachine = setup({
         },
         'KV.*': {
           actions: [
+            ({ event }: any) => {
+              console.log('xstat-nats forwarding kv event', event)
+            },
             sendTo('kv', ({ event, context }: { event: KvExternalEvents; context: Context }) => {
               return { ...event, connection: context.connection }
             }),
