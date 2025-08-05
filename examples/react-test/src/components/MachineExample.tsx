@@ -51,7 +51,7 @@ export const MachineExample = () => {
       const currentSubject = subjectInput.trim()
       send({
         type: 'SUBJECT.SUBSCRIBE',
-        subjectConfig: {
+        config: {
           subject: currentSubject,
           callback: data => {
             setAllMessages(prevMessages => [
@@ -383,9 +383,6 @@ export const MachineExample = () => {
         <div className='mb-8'>
           {/* Canvas at the top */}
           <div className='flex justify-center gap-4 bg-white rounded-xl shadow-lg p-4 border border-gray-200'>
-            <div className='min-w-96 bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-auto max-h-64'>
-              <pre>{state.value}</pre>
-            </div>
             <button
               onClick={handleConfigure}
               disabled={!state.can({ type: 'CONFIGURE', config: { opts: {}, maxRetries: 0 } })}
@@ -831,10 +828,13 @@ export const MachineExample = () => {
 
         {/* Right side - Combined State Panel */}
         <div className='h-screen w-96 bg-white shadow-lg border-l border-gray-200 p-4 overflow-y-auto fixed right-0 top-0 flex flex-col z-20'>
-          <h3 className='text-lg font-semibold text-gray-800 mb-4 sticky top-0 bg-white pb-2'>System State</h3>
+          <h3 className='text-lg font-semibold text-gray-800 mb-4 sticky top-0 bg-white'>System State</h3>
+          <div className='bg-gray-100 text-red-500 p-3 rounded-lg font-mono text-sm'>
+            <pre>{state.value}</pre>
+          </div>
 
           {/* Main State */}
-          <div className='mb-6'>
+          <div className='mb-6 mt-3'>
             <h4 className='text-md font-semibold text-gray-700 mb-2'>Root State</h4>
             <div className='bg-gray-50 p-3 rounded-lg'>
               <pre className='text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48'>

@@ -16,7 +16,7 @@ export type ExternalEvents =
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
   | { type: 'SUBJECT.CONNECT'; connection: NatsConnection }
-  | { type: 'SUBJECT.SUBSCRIBE'; subjectConfig: SubjectSubscriptionConfig }
+  | { type: 'SUBJECT.SUBSCRIBE'; config: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
   | { type: 'SUBJECT.UNSUBSCRIBE_ALL' }
   | {
@@ -38,18 +38,22 @@ export type Events = InternalEvents | ExternalEvents
 
 export interface Context {
   uid: string
+  cachedConnection: NatsConnection | null
   subscriptions: Map<string, Subscription>
   subscriptionConfigs: Map<string, SubjectSubscriptionConfig>
-  queuedPublishes: { subject: string; params: PublishParams }[]
-  maxQueueLength?: number
-  maxMessages?: number
-  cachedConnection: NatsConnection | null
+  syncRequired: number
+  error?: Error
 }
 
 export const subjectManagerLogic = setup({
   types: {
     context: {} as Context,
     events: {} as Events,
+  },
+  guards: {
+    hasPendingSync: ({ context }) => {
+      return context.syncRequired > 0
+    },
   },
 }).createMachine({
   /** @xstate-layout N4IgpgJg5mDOIC5QAoC2BDAxgCwJYDswBKAOlgFcAjAKzEwBcB9XCAGzAGIBlAVQCEAUgFEAwgBVGASQByksZICCAGUlchAbQAMAXUSgADgHtYuerkP49IAB6IATJs0kAnAFYAzAEY7rgDQgAT3tXTxJNAA53KOiYrwBfOP80LDxCUgoaOiYCU1x0VlwTfCgOa1h6dHowEnQAMyqAJ2RXRyIOZJwCYjIqWgZmfFz8woIoLV0kECMTMwsrWwQANk0AFhJPNy8ffyCEHzsSV0jY2M8EpIxOtJ7M-swLQgZIbn5hcUZePi4RACVJPg0Ois01yc0mC08jnCJAA7O4Vu4YX5AvYVjDDnZ4YjXOcQB1Ut0Mn0mPd8I8qhAXoJRBIeNJPt8-gDxsDjKDLODEEiDu5FjDPOEkTtEJ4Yc5cfiuulellGKTyc9Pm8JCIlEIFD8PvxGf9ARMDGzZhzQAs4a4SHY7ItXIttiiEN5oTjcfhDBA4FZJWlWTNzMabIgALSLYUIYMSy4E6W3bJsMA+9nzRArOyhy3QiInU4RlJSm7EgZDApFKAJo1JhArTzmzTV23I3bpsLHLNRM6JPGRvNE2XyrKQMt+iswpEkRaChv2eGHHNXQkyu4WWCGAoQSpgRjldeDsEmkWY0IrFYebyTvZomcdr3zmOMMANBqGBo7-0LFaLC0CoX26KHFuthIEiAA */
@@ -58,44 +62,45 @@ export const subjectManagerLogic = setup({
     uid: new Date().toISOString(),
     subscriptions: new Map<string, Subscription>(),
     subscriptionConfigs: new Map<string, SubjectSubscriptionConfig>(),
-    queuedPublishes: [],
-    maxQueueLength: 1000,
-    maxMessages: 100, // Keep last 100 messages
     cachedConnection: null,
+    syncRequired: 0,
+    error: undefined,
   },
   on: {
     'SUBJECT.SUBSCRIBE': {
-      actions: assign(({ context, event }) => {
-        const newConfigs = new Map(context.subscriptionConfigs)
-        newConfigs.set(event.subjectConfig.subject, event.subjectConfig)
-        return {
-          subscriptionConfigs: newConfigs,
-        }
-      }),
+      actions: [
+        assign({
+          subscriptionConfigs: ({ context, event }) => {
+            const { config } = event
+            const newConfigs = new Map(context.subscriptionConfigs)
+            newConfigs.set(config.subject, config)
+            return newConfigs
+          },
+          syncRequired: ({ context }) => context.syncRequired + 1,
+        }),
+      ],
     },
     'SUBJECT.UNSUBSCRIBE': {
-      actions: assign(({ context, event }) => {
-        const newConfigs = new Map(context.subscriptionConfigs)
-        newConfigs.delete(event.subject)
-        return {
-          subscriptionConfigs: newConfigs,
-        }
-      }),
+      actions: [
+        assign(({ context, event }) => {
+          const newConfigs = new Map(context.subscriptionConfigs)
+          newConfigs.delete(event.subject)
+          return {
+            subscriptionConfigs: newConfigs,
+            syncRequired: context.syncRequired + 1,
+          }
+        }),
+      ],
     },
     'SUBJECT.UNSUBSCRIBE_ALL': {
-      actions: assign({ subscriptionConfigs: new Map() }),
+      actions: assign({ subscriptionConfigs: new Map(), syncRequired: ({ context }) => context.syncRequired + 1 }),
     },
   },
   states: {
     subject_idle: {
-      entry: [
-        assign({
-          subscriptions: new Map<string, Subscription>(),
-        }),
-      ],
       on: {
         'SUBJECT.CONNECT': {
-          target: 'subject_syncing',
+          target: 'subject_check_sync',
           actions: [
             assign({
               cachedConnection: ({ event }) => event.connection,
@@ -105,18 +110,23 @@ export const subjectManagerLogic = setup({
       },
     },
     subject_disconnecting: {
+      target: 'subject_idle',
       entry: [
         ({ context }) => {
           context.cachedConnection?.close()
         },
         assign({
           cachedConnection: null,
+          subscriptions: new Map<string, Subscription>(),
         }),
       ],
-      target: 'subject_idle',
     },
     subject_connected: {
       entry: [sendParent({ type: 'SUBJECT.CONNECTED' })],
+      always: {
+        target: 'subject_syncing',
+        guard: 'hasPendingSync',
+      },
       on: {
         'SUBJECT.DISCONNECTED': {
           target: 'subject_disconnecting',
@@ -136,32 +146,51 @@ export const subjectManagerLogic = setup({
           }),
         },
         'SUBJECT.PUBLISH': {
-          actions: assign(({ event, context }) => {
-            subjectPublish({
-              input: {
-                connection: context.cachedConnection!,
-                subject: event.subject,
-                payload: event.payload,
-                options: event.opts,
-                onPublishResult: event.onPublishResult,
-              },
-            })
-            return {}
-          }),
+          actions: [
+            ({ context, event }) => {
+              subjectPublish({
+                input: {
+                  connection: context.cachedConnection!,
+                  subject: event.subject,
+                  payload: event.payload,
+                  options: event.opts,
+                  onPublishResult: event.onPublishResult,
+                },
+              })
+            },
+          ],
         },
       },
     },
+    subject_check_sync: {
+      always: [
+        {
+          target: 'subject_syncing',
+          guard: 'hasPendingSync',
+        },
+        {
+          target: 'subject_connected',
+        },
+      ],
+    },
     subject_syncing: {
       entry: [
-        assign(({ context }) =>
-          subjectConsolidateState({
+        ({ context }) => {
+          // either going to be 0 or 1 (if there were multiple syncs pending)
+          context.syncRequired = Math.min(context.syncRequired - 1, 1)
+        },
+        assign(({ context }) => {
+          const consolidatedContext = subjectConsolidateState({
             input: {
               connection: context.cachedConnection!,
               currentSubscriptions: context.subscriptions,
               targetSubscriptions: context.subscriptionConfigs,
             },
           })
-        ),
+          return {
+            ...consolidatedContext,
+          }
+        }),
       ],
       always: {
         target: 'subject_connected',
@@ -170,7 +199,7 @@ export const subjectManagerLogic = setup({
     subject_error: {
       on: {
         'SUBJECT.CONNECT': {
-          target: 'subject_syncing',
+          target: 'subject_check_sync',
         },
         '*': {
           actions: [

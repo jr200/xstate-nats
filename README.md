@@ -5,7 +5,8 @@ A state machine library that integrates [XState v5](https://xstate.js.org/) with
 ## Features
 
 - **State Machine Management**: Built on XState for predictable state transitions and side effects
-- **NATS Integration**: Full support for NATS Core, JetStream (TODO), and Key-Value operations
+- **NATS Integration**: Full support for NATS Core, JetStream, and Key-Value operations
+- **Authentication Support**: Multiple auth types (decentralised, userpass, token)
 - **Connection Management**: Automatic connection handling with retry logic and error recovery
 - **Subject Management**: Subscribe, publish, and request-reply operations with state tracking
 - **Key-Value Store**: KV bucket and key management with real-time subscriptions
@@ -38,6 +39,11 @@ function MyComponent() {
         opts: {
           servers: ['nats://localhost:4222']
         },
+        auth: {
+          type: 'userpass',
+          user: 'myuser',
+          pass: 'mypass'
+        },
         maxRetries: 3
       }
     })
@@ -60,7 +66,7 @@ function MyComponent() {
 // Subscribe to a subject
 send({
   type: 'SUBJECT.SUBSCRIBE',
-  subjectConfig: {
+  config: {
     subject: 'user.events',
     callback: (data) => {
       console.log('Received:', data)
@@ -160,6 +166,32 @@ The NATS machine operates in the following states:
 - `natsMachine`: The main XState machine for NATS operations
 - `KvSubscriptionKey`: Type for KV subscription keys
 - `parseNatsResult`: Utility for parsing NATS operation results
+- `AuthConfig`: Type for authentication configuration
+
+### Authentication
+
+```typescript
+// Decentralised auth
+auth: {
+  type: 'decentralised',
+  sentinelB64: 'base64-encoded-sentinel',
+  user: 'username',
+  pass: 'password'
+}
+
+// User/password auth
+auth: {
+  type: 'userpass',
+  user: 'username',
+  pass: 'password'
+}
+
+// Token auth
+auth: {
+  type: 'token',
+  token: 'your-token'
+}
+```
 
 ### Events
 
@@ -189,13 +221,7 @@ The NATS machine operates in the following states:
 
 ## Examples
 
-Check out the [React example](./examples/react-test/) for a complete working implementation that demonstrates:
-
-- Connection management
-- Subject subscriptions and publishing
-- Request-reply patterns
-- Key-Value operations
-- Real-time state updates
+Check out the [React example](./examples/react-test/) for a complete working implementation.
 
 ## Development
 
@@ -225,16 +251,6 @@ pnpm dev
 - `pnpm test`: Run tests
 - `pnpm lint`: Run ESLint
 - `pnpm format`: Format code with Prettier
-
-## Contributing
-
-Contributions welcome!
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
 
 ## License
 

@@ -121,13 +121,13 @@ export const kvManagerLogic = setup({
     kv_idle: {
       on: {
         'KV.CONNECT': {
+          target: 'kv_check_sync',
           actions: [
             assign({
               cachedConnection: ({ event }) => event.connection,
               cachedKvm: ({ event }) => new Kvm(event.connection),
             }),
           ],
-          target: 'kv_syncing',
         },
       },
     },
@@ -318,7 +318,7 @@ export const kvManagerLogic = setup({
     kv_error: {
       on: {
         'KV.CONNECT': {
-          target: 'kv_syncing',
+          target: 'kv_check_sync',
         },
       },
     },
