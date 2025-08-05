@@ -125,7 +125,10 @@ export const natsMachine = setup({
       invoke: [
         {
           src: 'connectToNats',
-          input: ({ context }) => ({ opts: context.natsConfig!.opts, auth: context.natsConfig!.auth }),
+          input: ({ context }) => ({
+            opts: context.natsConfig!.opts,
+            auth: context.natsConfig!.auth,
+          }),
           onDone: {
             target: 'initialise_managers',
             actions: [

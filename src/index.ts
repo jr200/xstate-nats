@@ -1,5 +1,5 @@
 export { natsMachine } from './machines/root'
-export { KvSubscriptionKey } from './actions/kv'
+export { KvSubscriptionKey, type KvSubscriptionConfig } from './actions/kv'
 export { parseNatsResult } from './actions/connection'
 export { type AuthConfig } from './actions/types'
 export { type NatsConnectionConfig, type Context, type ExternalEvents } from './machines/root'

@@ -2,6 +2,7 @@ import { fromPromise } from 'xstate'
 import { ConnectionOptions, credsAuthenticator, Msg, NatsConnection, wsconnect } from '@nats-io/nats-core'
 import { KvEntry } from '@nats-io/kv'
 import { type AuthConfig } from './types'
+import { sendParent } from 'xstate'
 
 const makeAuthConfig = (auth?: AuthConfig) => {
   if (!auth) {
@@ -30,13 +31,7 @@ const makeAuthConfig = (auth?: AuthConfig) => {
 }
 
 export const connectToNats = fromPromise(
-  async ({
-    input,
-    self,
-  }: {
-    input: { opts: ConnectionOptions; auth?: AuthConfig }
-    self: any
-  }): Promise<NatsConnection> => {
+  async ({ input }: { input: { opts: ConnectionOptions; auth?: AuthConfig } }): Promise<NatsConnection> => {
     const mergedOpts: ConnectionOptions = {
       ...input.opts,
       ...makeAuthConfig(input.auth),
@@ -44,45 +39,46 @@ export const connectToNats = fromPromise(
     console.log('CONNECTING TO NATS', mergedOpts)
     const nc = await wsconnect(mergedOpts)
 
-    // Emit status events into the machine
+    // bug: self refers to 'this' promise, which is short-lived....
+    // TODO: Emit status events into the machine instead
     ;(async () => {
       for await (const status of nc.status()) {
         console.log('Received nats-server status', status)
 
         switch (status.type) {
           case 'disconnect':
-            self.send({ type: 'DISCONNECTED' })
+            sendParent({ type: 'DISCONNECTED' })
             break
           case 'reconnect':
-            self.send({ type: 'RECONNECT' })
+            sendParent({ type: 'RECONNECT' })
             break
           case 'error':
             console.log('ERROR', status)
-            // self.send({ type: 'FAIL', error: status.error })
+            sendParent({ type: 'FAIL', error: status.error })
             break
           case 'close':
-            self.send({ type: 'CLOSE' })
+            sendParent({ type: 'CLOSE' })
             break
           case 'ldm':
-            // self.send({ type: 'LDM' })
+            console.debug('LDM', status)
             break
           case 'ping':
-            console.log('Received ping, sending pong')
+            console.debug('Received ping, pong sent automatically')
             break
           case 'forceReconnect':
-            self.send({ type: 'RECONNECT' })
+            sendParent({ type: 'RECONNECT' })
             break
           case 'reconnecting':
-            self.send({ type: 'RECONNECTING' })
+            sendParent({ type: 'RECONNECTING' })
             break
           case 'slowConsumer':
-            // self.send({ type: 'SLOW_CONSUMER' })
+            console.debug('SLOW_CONSUMER', status)
             break
           case 'staleConnection':
-            // self.send({ type: 'STALE_CONNECTION' })
+            console.debug('STALE_CONNECTION', status)
             break
           case 'update':
-            // self.send({ type: 'UPDATE' })
+            console.debug('UPDATE', status)
             break
         }
       }

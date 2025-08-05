@@ -4,16 +4,6 @@ import { KvEntry, Kvm, KvOptions, KvStatus, KvWatchEntry } from '@nats-io/kv'
 import { assign, sendParent, setup } from 'xstate'
 import { KvSubscriptionKey, KvSubscriptionConfig, kvConsolidateState } from '../actions/kv'
 
-export interface Context {
-  uid: string
-  kvm: Kvm | null
-  kvmOpts?: KvOptions
-  subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
-  subscriptionConfigs: Map<string, KvSubscriptionConfig>
-  syncRequired: number
-  error?: Error
-}
-
 // internal events and events from nats connection
 type InternalEvents = { type: 'ERROR'; error: Error }
 
@@ -62,6 +52,15 @@ export type ExternalEvents =
 
 export type Events = InternalEvents | ExternalEvents
 
+export interface Context {
+  uid: string
+  kvm: Kvm | null
+  kvmOpts?: KvOptions
+  subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
+  subscriptionConfigs: Map<string, KvSubscriptionConfig>
+  syncRequired: number
+  error?: Error
+}
 export const kvManagerLogic = setup({
   types: {
     context: {} as Context,
@@ -263,43 +262,7 @@ export const kvManagerLogic = setup({
             }
           },
         },
-        // 'KV.SUBSCRIBE': {
-        //   actions: [
-        //     assign({
-        //       subscriptionConfigs: ({ context, event }) => {
-        //         const { config } = event
-        //         const newConfigs = new Map(context.subscriptionConfigs)
-        //         const newKvKey = KvSubscriptionKey.key(config.bucket, config.key)
-        //         newConfigs.set(newKvKey, config)
-        //         return newConfigs
-        //       },
-        //     }),
-        //   ],
-        //   target: 'kv_syncing',
-        // },
-        // 'KV.UNSUBSCRIBE': {
-        //   actions: assign(({ context, event }) => {
-        //     const newConfigs = new Map(context.subscriptionConfigs)
-        //     const newKvKey = KvSubscriptionKey.key(event.bucket, event.key)
-        //     newConfigs.delete(newKvKey)
-        //     return {
-        //       subscriptionConfigs: newConfigs,
-        //     }
-        //   }),
-        //   target: 'kv_syncing',
-        // },
-        // 'KV.UNSUBSCRIBE_ALL': {
-        //   actions: assign({ subscriptionConfigs: new Map() }),
-        //   target: 'kv_syncing',
-        // },
-        // '*': {
-        //   actions: [
-        //     ({ event }: { event: any }) => {
-        //       console.error('kv received unexpected event', event)
-        //     },
-        //   ],
-        // },
-      },
+
     },
     kv_syncing: {
       invoke: {
