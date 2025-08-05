@@ -151,7 +151,7 @@ export const natsMachine = setup({
     initialise_managers: {
       entry: [
         sendTo('subject', ({ context }) => ({ type: 'SUBJECT.SYNC', connection: context.connection! })),
-        sendTo('kv', ({ context }) => ({ type: 'KV.SYNC', connection: context.connection! })),
+        sendTo('kv', ({ context }) => ({ type: 'KV.CONNECT', connection: context.connection! })),
       ],
       on: {
         'SUBJECT.CONNECTED': {

@@ -9,9 +9,9 @@ type InternalEvents = { type: 'ERROR'; error: Error }
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
+  | { type: 'KV.CONNECT'; connection: NatsConnection }
   | { type: 'KV.CONNECTED' }
   | { type: 'KV.DISCONNECTED' }
-  | { type: 'KV.SYNC'; kvm: Kvm | null }
   | {
       type: 'KV.BUCKET_LIST'
       bucket?: string
@@ -54,7 +54,8 @@ export type Events = InternalEvents | ExternalEvents
 
 export interface Context {
   uid: string
-  kvm: Kvm | null
+  cachedConnection: NatsConnection | null
+  cachedKvm: Kvm | null
   kvmOpts?: KvOptions
   subscriptions: Map<string, QueuedIterator<KvWatchEntry>>
   subscriptionConfigs: Map<string, KvSubscriptionConfig>
@@ -70,7 +71,7 @@ export const kvManagerLogic = setup({
     kvConsolidateState: kvConsolidateState,
   },
   guards: {
-    isPendingSync: ({ context }) => {
+    hasPendingSync: ({ context }) => {
       return context.syncRequired > 0
     },
   },
@@ -79,7 +80,8 @@ export const kvManagerLogic = setup({
   initial: 'kv_idle',
   context: {
     uid: new Date().toISOString(),
-    kvm: null,
+    cachedConnection: null,
+    cachedKvm: null,
     kvmOpts: undefined,
     subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
     subscriptionConfigs: new Map<string, KvSubscriptionConfig>(),
@@ -99,7 +101,6 @@ export const kvManagerLogic = setup({
           syncRequired: ({ context }) => context.syncRequired + 1,
         }),
       ],
-      target: '.kv_syncing',
     },
     'KV.UNSUBSCRIBE': {
       actions: assign(({ context, event }) => {
@@ -111,64 +112,69 @@ export const kvManagerLogic = setup({
           syncRequired: context.syncRequired + 1,
         }
       }),
-      target: '.kv_syncing',
     },
     'KV.UNSUBSCRIBE_ALL': {
       actions: assign({ subscriptionConfigs: new Map(), syncRequired: ({ context }) => context.syncRequired + 1 }),
-      target: '.kv_syncing',
     },
   },
   states: {
     kv_idle: {
-      entry: [
-        assign({
-          kvm: null,
-          subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
-        }),
-      ],
       on: {
-        'KV.SYNC': {
+        'KV.CONNECT': {
+          actions: [
+            assign({
+              cachedConnection: ({ event }) => event.connection,
+              cachedKvm: ({ event }) => new Kvm(event.connection),
+            }),
+          ],
           target: 'kv_syncing',
         },
-        // '*': {
-        //   actions: [
-        //     ({ event }: { event: any }) => {
-        //       console.error('kv received unexpected event', event)
-        //     },
-        //   ],
-        // },
       },
+    },
+    kv_connecting: {
+      target: 'kv_connected',
+      entry: assign({
+        subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
+      }),
+    },
+    kv_disconnecting: {
+      target: 'kv_idle',
+      entry: [
+        ({ context }) => {
+          context.cachedConnection?.close()
+        },
+        assign({
+          cachedConnection: null,
+          cachedKvm: null,
+          subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
+        }),
+        sendParent({ type: 'KV.DISCONNECTED' }),
+      ],
     },
     kv_connected: {
       entry: [sendParent({ type: 'KV.CONNECTED' })],
       always: {
         target: 'kv_syncing',
-        guard: 'isPendingSync',
+        guard: 'hasPendingSync',
       },
       on: {
-        'KV.DISCONNECTED': {
-          target: 'kv_idle',
-        },
-        'KV.SYNC': {
-          target: 'kv_syncing',
-        },
         'KV.BUCKET_LIST': {
           actions: async ({ context, event }) => {
             try {
-              if (!context.kvm) {
+              if (!context.cachedKvm) {
                 event.onResult({ error: new Error('KVM not initialized') })
                 return
               }
 
               const results = []
               if (event.bucket) {
-                const bucket = await context.kvm.open(event.bucket)
+                const bucket = await context.cachedKvm.open(event.bucket)
                 for await (const key of await bucket.keys()) {
                   results.push(key)
                 }
                 event.onResult(results)
               } else {
-                for await (const status of await context.kvm.list()) {
+                for await (const status of await context.cachedKvm.list()) {
                   results.push(status)
                 }
                 event.onResult(results)
@@ -181,16 +187,16 @@ export const kvManagerLogic = setup({
         'KV.BUCKET_CREATE': {
           actions: async ({ context, event }) => {
             try {
-              if (!context.kvm) throw new Error('KVM not initialized')
+              if (!context.cachedKvm) throw new Error('KVM not initialized')
 
-              for await (const status of context.kvm.list()) {
+              for await (const status of context.cachedKvm.list()) {
                 if (status.bucket === event.bucket) {
                   event.onResult?.({ ok: false })
                   return
                 }
               }
 
-              await context.kvm.create(event.bucket)
+              await context.cachedKvm.create(event.bucket)
               event.onResult?.({ ok: true })
             } catch (error) {
               event.onResult?.({ error: error as Error })
@@ -219,7 +225,7 @@ export const kvManagerLogic = setup({
         'KV.GET': {
           actions: async ({ context, event }) => {
             try {
-              const kv = await context.kvm?.open(event.bucket)
+              const kv = await context.cachedKvm?.open(event.bucket)
               if (!kv) {
                 event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
                 return
@@ -234,7 +240,7 @@ export const kvManagerLogic = setup({
         'KV.PUT': {
           actions: async ({ context, event }) => {
             try {
-              const kv = await context.kvm?.open(event.bucket)
+              const kv = await context.cachedKvm?.open(event.bucket)
               if (!kv) {
                 event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
                 return
@@ -250,7 +256,7 @@ export const kvManagerLogic = setup({
         'KV.DELETE': {
           actions: async ({ context, event }) => {
             try {
-              const kv = await context.kvm?.open(event.bucket)
+              const kv = await context.cachedKvm?.open(event.bucket)
               if (!kv) {
                 event.onResult({ error: new Error(`Bucket '${event.bucket}' not found`) })
                 return
@@ -262,44 +268,63 @@ export const kvManagerLogic = setup({
             }
           },
         },
-
+      },
+    },
+    kv_check_sync: {
+      always: [
+        {
+          target: 'kv_syncing',
+          guard: 'hasPendingSync',
+        },
+        {
+          target: 'kv_connected',
+        },
+      ],
     },
     kv_syncing: {
+      entry: [
+        ({ context }) => {
+          // either going to be 0 or 1 (if there were multiple syncs pending)
+          context.syncRequired = Math.min(context.syncRequired - 1, 1)
+        },
+      ],
       invoke: {
+        id: 'single-instance-sync',
         src: 'kvConsolidateState',
-        input: ({ context, event }: { context: Context; event: Events }) => ({
-          kvm: context.kvm!,
-          connection: (event as any).connection as NatsConnection,
+        input: ({ context }: { context: Context }) => ({
+          kvm: context.cachedKvm!,
+          connection: context.cachedConnection!,
           currentState: context.subscriptions,
           targetState: context.subscriptionConfigs,
         }),
         onDone: {
           target: 'kv_connected',
-          actions: assign(({ event }) => ({
-            kvm: event.output.kvm,
-            subscriptions: event.output.subscriptions,
-            syncRequired: 0,
-          })),
+          actions: [
+            () => {
+              // console.log('kvConsolidateState onDone')
+            },
+            assign(({ event }) => ({
+              subscriptions: event.output.subscriptions,
+            })),
+          ],
         },
         onError: {
           target: 'kv_error',
-          actions: assign({
-            error: ({ event }) => event.error as Error,
-          }),
+          actions: [
+            assign({
+              error: ({ event }) => {
+                console.error('kvConsolidateState onError', event.error)
+                return event.error as Error
+              },
+            }),
+          ],
         },
       },
     },
     kv_error: {
       on: {
-        'KV.SYNC': {
-          target: 'kv_syncing',
-        },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('kv received unexpected event', event)
-            },
-          ],
+        'KV.CONNECT': {
+          target: 'kv_connecting',
         },
       },
     },
