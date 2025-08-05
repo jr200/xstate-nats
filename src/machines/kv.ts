@@ -131,12 +131,6 @@ export const kvManagerLogic = setup({
         },
       },
     },
-    kv_connecting: {
-      target: 'kv_connected',
-      entry: assign({
-        subscriptions: new Map<string, QueuedIterator<KvWatchEntry>>(),
-      }),
-    },
     kv_disconnecting: {
       target: 'kv_idle',
       entry: [
@@ -324,7 +318,7 @@ export const kvManagerLogic = setup({
     kv_error: {
       on: {
         'KV.CONNECT': {
-          target: 'kv_connecting',
+          target: 'kv_syncing',
         },
       },
     },

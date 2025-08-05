@@ -571,7 +571,7 @@ export const MachineExample = () => {
                             {new Date(message.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
-                        
+
                         {/* Message content based on type */}
                         {message.type === 'SUBSCRIPTION' && (
                           <div>
@@ -595,7 +595,9 @@ export const MachineExample = () => {
                             <div>
                               <h4 className='text-sm font-semibold text-gray-700 mb-2'>Reply:</h4>
                               <pre className='text-xs text-gray-700 bg-white p-2 rounded border whitespace-pre-wrap overflow-auto'>
-                                {typeof message.reply === 'string' ? message.reply : JSON.stringify(message.reply, null, 2)}
+                                {typeof message.reply === 'string'
+                                  ? message.reply
+                                  : JSON.stringify(message.reply, null, 2)}
                               </pre>
                             </div>
                           </div>

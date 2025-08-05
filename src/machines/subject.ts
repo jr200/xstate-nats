@@ -8,15 +8,6 @@ export type PublishParams = {
   onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
 }
 
-export interface Context {
-  uid: string
-  subscriptions: Map<string, Subscription>
-  subscriptionConfigs: Map<string, SubjectSubscriptionConfig>
-  queuedPublishes: { subject: string; params: PublishParams }[]
-  maxQueueLength?: number
-  maxMessages?: number
-}
-
 // internal events and events from nats connection
 type InternalEvents = { type: 'ERROR'; error: Error }
 
@@ -24,7 +15,7 @@ type InternalEvents = { type: 'ERROR'; error: Error }
 export type ExternalEvents =
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
-  | { type: 'SUBJECT.SYNC' }
+  | { type: 'SUBJECT.CONNECT'; connection: NatsConnection }
   | { type: 'SUBJECT.SUBSCRIBE'; subjectConfig: SubjectSubscriptionConfig }
   | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
   | { type: 'SUBJECT.UNSUBSCRIBE_ALL' }
@@ -45,6 +36,16 @@ export type ExternalEvents =
 
 export type Events = InternalEvents | ExternalEvents
 
+export interface Context {
+  uid: string
+  subscriptions: Map<string, Subscription>
+  subscriptionConfigs: Map<string, SubjectSubscriptionConfig>
+  queuedPublishes: { subject: string; params: PublishParams }[]
+  maxQueueLength?: number
+  maxMessages?: number
+  cachedConnection: NatsConnection | null
+}
+
 export const subjectManagerLogic = setup({
   types: {
     context: {} as Context,
@@ -60,6 +61,30 @@ export const subjectManagerLogic = setup({
     queuedPublishes: [],
     maxQueueLength: 1000,
     maxMessages: 100, // Keep last 100 messages
+    cachedConnection: null,
+  },
+  on: {
+    'SUBJECT.SUBSCRIBE': {
+      actions: assign(({ context, event }) => {
+        const newConfigs = new Map(context.subscriptionConfigs)
+        newConfigs.set(event.subjectConfig.subject, event.subjectConfig)
+        return {
+          subscriptionConfigs: newConfigs,
+        }
+      }),
+    },
+    'SUBJECT.UNSUBSCRIBE': {
+      actions: assign(({ context, event }) => {
+        const newConfigs = new Map(context.subscriptionConfigs)
+        newConfigs.delete(event.subject)
+        return {
+          subscriptionConfigs: newConfigs,
+        }
+      }),
+    },
+    'SUBJECT.UNSUBSCRIBE_ALL': {
+      actions: assign({ subscriptionConfigs: new Map() }),
+    },
   },
   states: {
     subject_idle: {
@@ -69,57 +94,38 @@ export const subjectManagerLogic = setup({
         }),
       ],
       on: {
-        'SUBJECT.SYNC': {
+        'SUBJECT.CONNECT': {
           target: 'subject_syncing',
+          actions: [
+            assign({
+              cachedConnection: ({ event }) => event.connection,
+            }),
+          ],
         },
-        // '*': {
-        //   actions: [
-        //     ({ event }: { event: any }) => {
-        //       console.error('subject received unexpected event', event)
-        //     },
-        //   ],
-        // },
       },
+    },
+    subject_disconnecting: {
+      entry: [
+        ({ context }) => {
+          context.cachedConnection?.close()
+        },
+        assign({
+          cachedConnection: null,
+        }),
+      ],
+      target: 'subject_idle',
     },
     subject_connected: {
       entry: [sendParent({ type: 'SUBJECT.CONNECTED' })],
       on: {
         'SUBJECT.DISCONNECTED': {
-          target: 'subject_idle',
-        },
-        'SUBJECT.SYNC': {
-          target: 'subject_syncing',
-        },
-        'SUBJECT.SUBSCRIBE': {
-          actions: assign(({ context, event }) => {
-            return {
-              subscriptionConfigs: new Map(context.subscriptionConfigs).set(
-                event.subjectConfig.subject,
-                event.subjectConfig
-              ),
-            }
-          }),
-          target: 'subject_syncing',
-        },
-        'SUBJECT.UNSUBSCRIBE': {
-          actions: assign(({ context, event }) => {
-            const newConfigs = new Map(context.subscriptionConfigs)
-            newConfigs.delete(event.subject)
-            return {
-              subscriptionConfigs: newConfigs,
-            }
-          }),
-          target: 'subject_syncing',
-        },
-        'SUBJECT.UNSUBSCRIBE_ALL': {
-          actions: assign({ subscriptionConfigs: new Map() }),
-          target: 'subject_syncing',
+          target: 'subject_disconnecting',
         },
         'SUBJECT.REQUEST': {
-          actions: assign(({ event }) => {
+          actions: assign(({ event, context }) => {
             subjectRequest({
               input: {
-                connection: (event as any).connection as NatsConnection,
+                connection: context.cachedConnection!,
                 subject: event.subject,
                 payload: event.payload,
                 opts: event.opts,
@@ -130,10 +136,10 @@ export const subjectManagerLogic = setup({
           }),
         },
         'SUBJECT.PUBLISH': {
-          actions: assign(({ event }) => {
+          actions: assign(({ event, context }) => {
             subjectPublish({
               input: {
-                connection: (event as any).connection as NatsConnection,
+                connection: context.cachedConnection!,
                 subject: event.subject,
                 payload: event.payload,
                 options: event.opts,
@@ -143,21 +149,14 @@ export const subjectManagerLogic = setup({
             return {}
           }),
         },
-        // '*': {
-        //   actions: [
-        //     ({ event }: { event: any }) => {
-        //       console.error('subject received unexpected event', event)
-        //     },
-        //   ],
-        // },
       },
     },
     subject_syncing: {
       entry: [
-        assign(({ context, event }) =>
+        assign(({ context }) =>
           subjectConsolidateState({
             input: {
-              connection: (event as any).connection as NatsConnection,
+              connection: context.cachedConnection!,
               currentSubscriptions: context.subscriptions,
               targetSubscriptions: context.subscriptionConfigs,
             },
@@ -170,7 +169,7 @@ export const subjectManagerLogic = setup({
     },
     subject_error: {
       on: {
-        'SUBJECT.SYNC': {
+        'SUBJECT.CONNECT': {
           target: 'subject_syncing',
         },
         '*': {
