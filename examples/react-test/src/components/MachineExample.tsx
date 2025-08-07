@@ -20,9 +20,6 @@ export const MachineExample = () => {
   // Request-reply state
   const [requestPayload, setRequestPayload] = useState('{"message": "Hello, NATS!"}')
 
-  // Publish state
-  const [publishResults, setPublishResults] = useState<any[]>([])
-
   // KV state
   const [kvBucket, setKvBucket] = useState('test-bucket')
   const [kvKey, setKvKey] = useState('test-key')

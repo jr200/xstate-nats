@@ -1,6 +1,6 @@
 {
   "name": "@jr200/xstate-nats",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "XState machine for NATS",
   "repository": "https://github.com/jr200/xstate-nats",
   "license": "MIT",
@@ -27,7 +27,7 @@
     "@nats-io/kv": "^3.1.0",
     "@nats-io/nats-core": "^3.1.0",
     "@nats-io/obj": "^3.1.0",
-    "xstate": "^5.20.1"
+    "xstate": "^5.20.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

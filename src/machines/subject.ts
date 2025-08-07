@@ -2,30 +2,14 @@ import { Subscription, PublishOptions, NatsConnection, RequestOptions } from '@n
 import { assign, sendParent, setup } from 'xstate'
 import { SubjectSubscriptionConfig, subjectConsolidateState, subjectRequest, subjectPublish } from '../actions/subject'
 
-export type PublishParams = {
-  payload: Uint8Array | string
-  options?: PublishOptions
-  onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
-}
-
 // internal events and events from nats connection
 type InternalEvents = { type: 'ERROR'; error: Error }
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
+  | { type: 'SUBJECT.CONNECT'; connection: NatsConnection }
   | { type: 'SUBJECT.CONNECTED' }
   | { type: 'SUBJECT.DISCONNECTED' }
-  | { type: 'SUBJECT.CONNECT'; connection: NatsConnection }
-  | { type: 'SUBJECT.SUBSCRIBE'; config: SubjectSubscriptionConfig }
-  | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
-  | { type: 'SUBJECT.UNSUBSCRIBE_ALL' }
-  | {
-      type: 'SUBJECT.REQUEST'
-      subject: string
-      payload: any
-      opts?: RequestOptions
-      callback: (data: any) => void
-    }
   | {
       type: 'SUBJECT.PUBLISH'
       subject: string
@@ -33,6 +17,16 @@ export type ExternalEvents =
       opts?: PublishOptions
       onPublishResult?: (result: { ok: true } | { ok: false; error: Error }) => void
     }
+  | {
+      type: 'SUBJECT.REQUEST'
+      subject: string
+      payload: any
+      opts?: RequestOptions
+      callback: (data: any) => void
+    }
+  | { type: 'SUBJECT.SUBSCRIBE'; config: SubjectSubscriptionConfig }
+  | { type: 'SUBJECT.UNSUBSCRIBE'; subject: string }
+  | { type: 'SUBJECT.UNSUBSCRIBE_ALL' }
 
 export type Events = InternalEvents | ExternalEvents
 
@@ -112,13 +106,12 @@ export const subjectManagerLogic = setup({
     subject_disconnecting: {
       target: 'subject_idle',
       entry: [
-        ({ context }) => {
-          context.cachedConnection?.close()
-        },
+        // dont close the connection here, it will be closed by the nats connection machine
         assign({
           cachedConnection: null,
           subscriptions: new Map<string, Subscription>(),
         }),
+        sendParent({ type: 'SUBJECT.DISCONNECTED' }),
       ],
     },
     subject_connected: {
@@ -128,9 +121,6 @@ export const subjectManagerLogic = setup({
         guard: 'hasPendingSync',
       },
       on: {
-        'SUBJECT.DISCONNECTED': {
-          target: 'subject_disconnecting',
-        },
         'SUBJECT.REQUEST': {
           actions: assign(({ event, context }) => {
             subjectRequest({
@@ -200,13 +190,6 @@ export const subjectManagerLogic = setup({
       on: {
         'SUBJECT.CONNECT': {
           target: 'subject_check_sync',
-        },
-        '*': {
-          actions: [
-            ({ event }: { event: any }) => {
-              console.error('subject received unexpected event', event)
-            },
-          ],
         },
       },
     },

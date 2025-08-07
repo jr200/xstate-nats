@@ -9,8 +9,8 @@ export type KvSubscriptionConfig = {
   bucket: string
   key: string
   callback: (data: any) => void
-  replayOnReconnect?: boolean
   opts?: KvWatchOptions
+  replayOnReconnect?: boolean
 }
 
 export const kvConsolidateState = fromPromise(

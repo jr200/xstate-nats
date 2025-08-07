@@ -134,9 +134,7 @@ export const kvManagerLogic = setup({
     kv_disconnecting: {
       target: 'kv_idle',
       entry: [
-        ({ context }) => {
-          context.cachedConnection?.close()
-        },
+        // dont close the connection here, it will be closed by the nats connection machine
         assign({
           cachedConnection: null,
           cachedKvm: null,
