@@ -4,6 +4,7 @@ import { kvManagerLogic, ExternalEvents as KvExternalEvents } from './kv'
 import { subjectManagerLogic, ExternalEvents as SubjectExternalEvents } from './subject'
 import { connectToNats, disconnectNats } from '../actions/connection'
 import { type AuthConfig } from '../actions/types'
+import { InternalStatusEvents as NatsStatusEvents } from '../actions/connection'
 
 export interface NatsConnectionConfig {
   opts: ConnectionOptions
@@ -27,6 +28,7 @@ type InternalEvents =
   | { type: 'FAIL'; error: Error }
   | { type: 'RECONNECT' }
   | { type: 'CLOSE' }
+  | NatsStatusEvents
 
 // events which can be sent to the machine from the user
 export type ExternalEvents =
@@ -83,6 +85,15 @@ export const natsMachine = setup({
     { src: 'subject', id: 'subject', systemId: 'subject' },
     { src: 'kv', id: 'kv' },
   ],
+  on: {
+    'NATS_CONNECTION.*': {
+      actions: [
+        ({ event }: { event: any }) => {
+          console.log('root received NATS status event', event)
+        },
+      ],
+    },
+  },
   states: {
     not_configured: {
       on: {
@@ -96,7 +107,7 @@ export const natsMachine = setup({
           '*': {
             actions: [
               ({ event }: { event: any }) => {
-                console.error('root received unexpected event', event)
+                console.error('root not_configured received unexpected event', event)
               },
             ],
           },
@@ -115,7 +126,7 @@ export const natsMachine = setup({
         '*': {
           actions: [
             ({ event }: { event: any }) => {
-              console.error('root received unexpected event', event)
+              console.error('root configured received unexpected event', event)
             },
           ],
         },
@@ -204,7 +215,7 @@ export const natsMachine = setup({
         '*': {
           actions: [
             ({ event }: { event: any }) => {
-              console.error('root received unexpected event', event)
+              console.error('root connected received unexpected event', event)
             },
           ],
         },
@@ -245,7 +256,7 @@ export const natsMachine = setup({
       '*': {
         actions: [
           ({ event }: { event: any }) => {
-            console.error('root received unexpected event', event)
+            console.error('root closing received unexpected event', event)
           },
         ],
       },
@@ -260,7 +271,7 @@ export const natsMachine = setup({
       '*': {
         actions: [
           ({ event }: { event: any }) => {
-            console.error('root received unexpected event', event)
+            console.error('root error received unexpected event', event)
           },
         ],
       },

@@ -1,5 +1,5 @@
 import { fromPromise } from 'xstate'
-import { ConnectionOptions, credsAuthenticator, Msg, NatsConnection, wsconnect } from '@nats-io/nats-core'
+import { ConnectionOptions, credsAuthenticator, Msg, NatsConnection, Status, wsconnect } from '@nats-io/nats-core'
 import { KvEntry } from '@nats-io/kv'
 import { type AuthConfig } from './types'
 import { sendParent } from 'xstate'
@@ -30,46 +30,52 @@ const makeAuthConfig = (auth?: AuthConfig) => {
   throw new Error(`Unsupported auth config type ${auth.type}`)
 }
 
+export type InternalStatusEvents =
+  | { type: 'NATS_CONNECTION.DISCONNECTED'; status: Status }
+  | { type: 'NATS_CONNECTION.RECONNECT'; status: Status }
+  | { type: 'NATS_CONNECTION.ERROR'; status: Status }
+  | { type: 'NATS_CONNECTION.CLOSE'; status: Status }
+  | { type: 'NATS_CONNECTION.RECONNECTING'; status: Status }
+
 export const connectToNats = fromPromise(
   async ({ input }: { input: { opts: ConnectionOptions; auth?: AuthConfig } }): Promise<NatsConnection> => {
     const mergedOpts: ConnectionOptions = {
       ...input.opts,
       ...makeAuthConfig(input.auth),
     }
-    console.log('CONNECTING TO NATS', mergedOpts)
     const nc = await wsconnect(mergedOpts)
 
     // bug: self refers to 'this' promise, which is short-lived....
     // TODO: Emit status events into the machine instead
     ;(async () => {
       for await (const status of nc.status()) {
-        console.log('Received nats-server status', status)
+        console.log('Status loop received status', status)
+        const { type } = status
 
-        switch (status.type) {
+        switch (type) {
           case 'disconnect':
-            sendParent({ type: 'DISCONNECTED' })
+            sendParent({ type: 'NATS_CONNECTION.DISCONNECTED', status })
             break
           case 'reconnect':
-            sendParent({ type: 'RECONNECT' })
+            sendParent({ type: 'NATS_CONNECTION.RECONNECT', status })
             break
           case 'error':
-            console.log('ERROR', status)
-            sendParent({ type: 'FAIL', error: status.error })
+            sendParent({ type: 'NATS_CONNECTION.ERROR', status })
             break
           case 'close':
-            sendParent({ type: 'CLOSE' })
+            sendParent({ type: 'NATS_CONNECTION.CLOSE', status })
             break
           case 'ldm':
             console.debug('LDM', status)
             break
           case 'ping':
-            console.debug('Received ping, pong sent automatically')
+            // console.debug('Received ping, pong sent automatically')
             break
           case 'forceReconnect':
-            sendParent({ type: 'RECONNECT' })
+            sendParent({ type: 'NATS_CONNECTION.RECONNECT', status })
             break
           case 'reconnecting':
-            sendParent({ type: 'RECONNECTING' })
+            sendParent({ type: 'NATS_CONNECTION.RECONNECTING', status })
             break
           case 'slowConsumer':
             console.debug('SLOW_CONSUMER', status)
@@ -78,11 +84,11 @@ export const connectToNats = fromPromise(
             console.debug('STALE_CONNECTION', status)
             break
           case 'update':
-            console.debug('UPDATE', status)
+            console.debug('NATS_CONNECTION.UPDATE', status)
             break
         }
       }
-      console.log('END STATUS LOOP')
+      console.log('Exiting nats status loop')
     })()
 
     return nc
